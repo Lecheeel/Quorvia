@@ -1,0 +1,22 @@
+[Unit]
+Description=Quorvia QRNG Proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/quorvia/server
+EnvironmentFile=/etc/quorvia/qrng-proxy.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+User=quorvia
+Group=quorvia
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,27 @@
+.quorvia.local.env
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/build/
+android/**/build/
+android/local.properties
+android/.idea/
+android/*.hprof
+
+
+# Node
+server/node_modules/
+server/dist/
+server/test/**/*.js
+server/.env
+server/.env.*
+!server/.env.example
+!server/.env.test
+server/npm-debug.log*
+server/pnpm-debug.log*
+server/yarn-error.log*
