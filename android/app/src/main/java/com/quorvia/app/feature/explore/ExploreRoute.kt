@@ -48,8 +48,10 @@ import com.amap.api.location.AMapLocationClientOption
 import com.amap.api.maps.CameraUpdateFactory
 import com.amap.api.maps.MapView
 import com.amap.api.maps.model.BitmapDescriptorFactory
+import com.amap.api.maps.model.CircleOptions
 import com.amap.api.maps.model.LatLng
 import com.amap.api.maps.model.MarkerOptions
+import com.amap.api.maps.model.MyLocationStyle
 import com.amap.api.maps.model.PolylineOptions
 import com.quorvia.app.ui.theme.QuorviaTheme
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +98,7 @@ private fun ExploreScreen(
             grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
             onStateChange(uiState.withStatus(ExploreStatus.Message("Location permission granted.")))
+            mapView.enableCurrentLocationCursor()
             startSingleLocation(context, onStateChange, uiState, mapView)
         } else {
             onStateChange(uiState.withStatus(ExploreStatus.Error("Location permission is required.")))
@@ -113,6 +116,7 @@ private fun ExploreScreen(
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasFine || hasCoarse) {
+            mapView.enableCurrentLocationCursor()
             startSingleLocation(context, onStateChange, uiState, mapView)
         } else {
             permissionLauncher.launch(
@@ -161,7 +165,6 @@ private fun ExploreScreen(
 
                     result
                         .onSuccess { target ->
-                            mapView.addTargetMarker(current, target)
                             onStateChange(uiState.withTargetPoint(target))
                         }
                         .onFailure { error ->
@@ -193,11 +196,9 @@ private fun AMapPanel(
             modifier = Modifier.fillMaxSize(),
             factory = { mapView },
             update = {
+                it.renderExploreOverlays(uiState)
                 uiState.currentPoint?.let { point ->
                     it.map.moveCamera(CameraUpdateFactory.newLatLngZoom(point.toLatLng(), 15f))
-                }
-                uiState.targetPoint?.let { target ->
-                    it.addTargetMarker(uiState.currentPoint, target)
                 }
             },
         )
@@ -327,16 +328,26 @@ private fun startSingleLocation(
     client.startLocation()
 }
 
-private fun MapView.addTargetMarker(origin: ExplorePoint?, target: ExplorePoint) {
+private fun MapView.enableCurrentLocationCursor() {
+    map.myLocationStyle = MyLocationStyle()
+        .myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE_NO_CENTER)
+        .showMyLocation(true)
+    map.isMyLocationEnabled = true
+}
+
+private fun MapView.renderExploreOverlays(state: ExploreUiState) {
     map.clear()
-    origin?.let {
-        map.addMarker(
-            MarkerOptions()
-                .position(it.toLatLng())
-                .title("Current location")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)),
+    state.currentPoint?.let { origin ->
+        map.addCircle(
+            CircleOptions()
+                .center(origin.toLatLng())
+                .radius(state.radiusKm * 1000.0)
+                .strokeColor(0xFF2367F4.toInt())
+                .fillColor(0x222367F4)
+                .strokeWidth(4f),
         )
     }
+    val target = state.targetPoint ?: return
     map.addMarker(
         MarkerOptions()
             .position(target.toLatLng())
@@ -344,15 +355,14 @@ private fun MapView.addTargetMarker(origin: ExplorePoint?, target: ExplorePoint)
             .snippet("Generated from ANU/AQN entropy")
             .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)),
     )
-    origin?.let {
+    state.currentPoint?.let { origin ->
         map.addPolyline(
             PolylineOptions()
-                .add(it.toLatLng(), target.toLatLng())
+                .add(origin.toLatLng(), target.toLatLng())
                 .color(0xFF2367F4.toInt())
                 .width(8f),
         )
     }
-    map.moveCamera(CameraUpdateFactory.newLatLngZoom(target.toLatLng(), 15f))
 }
 
 private fun ExplorePoint.toLatLng(): LatLng = LatLng(latitude, longitude)
