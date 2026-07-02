@@ -179,6 +179,7 @@ private fun ExploreScreen(
             uiState = uiState,
             onRadiusChange = { onStateChange(uiState.withRadius(it)) },
             onRouteModeChange = { onStateChange(uiState.withRouteMode(it)) },
+            onMapVisualModeChange = { onStateChange(uiState.withMapVisualMode(it)) },
             onLocate = {
                 startSingleLocation(context, onStateChange, uiState, mapView)
             },
@@ -261,6 +262,7 @@ private fun ControlPanel(
     uiState: ExploreUiState,
     onRadiusChange: (Int) -> Unit,
     onRouteModeChange: (RouteMode) -> Unit,
+    onMapVisualModeChange: (MapVisualMode) -> Unit,
     onLocate: () -> Unit,
     onGenerateRoute: () -> Unit,
     onOpenNavigation: () -> Unit,
@@ -314,6 +316,22 @@ private fun ControlPanel(
                 )
                 Spacer(Modifier.size(1.dp).weight(1f))
                 Text(formatRadius(uiState.radiusMeters))
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Map", style = MaterialTheme.typography.titleSmall)
+                FilterChip(
+                    selected = uiState.mapVisualMode == MapVisualMode.Normal,
+                    onClick = { onMapVisualModeChange(MapVisualMode.Normal) },
+                    label = { Text("2D") },
+                )
+                FilterChip(
+                    selected = uiState.mapVisualMode == MapVisualMode.Satellite,
+                    onClick = { onMapVisualModeChange(MapVisualMode.Satellite) },
+                    label = { Text("Satellite") },
+                )
             }
             StatusText(uiState.status)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -427,6 +445,7 @@ private class MapRenderState {
 }
 
 private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: ExploreUiState) {
+    map.mapType = state.mapVisualMode.toAmapMapType()
     renderState.radiusCircle?.remove()
     renderState.targetMarker?.remove()
     renderState.routePolyline?.remove()
@@ -465,6 +484,12 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
 }
 
 private fun ExplorePoint.toLatLng(): LatLng = LatLng(latitude, longitude)
+
+private fun MapVisualMode.toAmapMapType(): Int =
+    when (this) {
+        MapVisualMode.Normal -> com.amap.api.maps.AMap.MAP_TYPE_NORMAL
+        MapVisualMode.Satellite -> com.amap.api.maps.AMap.MAP_TYPE_SATELLITE
+    }
 
 private fun ExplorePoint.toLatLonPoint(): LatLonPoint = LatLonPoint(latitude, longitude)
 
@@ -609,6 +634,7 @@ private fun ExploreRoutePreview() {
             ),
             onRadiusChange = {},
             onRouteModeChange = {},
+            onMapVisualModeChange = {},
             onLocate = {},
             onGenerateRoute = {},
             onOpenNavigation = {},

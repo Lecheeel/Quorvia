@@ -3,6 +3,7 @@ package com.quorvia.app.feature.explore
 data class ExploreUiState(
     val radiusMeters: Int = DEFAULT_RADIUS_METERS,
     val routeMode: RouteMode = RouteMode.Walk,
+    val mapVisualMode: MapVisualMode = MapVisualMode.Normal,
     val currentPoint: ExplorePoint? = null,
     val targetPoint: ExplorePoint? = null,
     val routePoints: List<ExplorePoint> = emptyList(),
@@ -17,6 +18,11 @@ data class ExploreUiState(
 enum class RouteMode {
     Walk,
     Drive,
+}
+
+enum class MapVisualMode {
+    Normal,
+    Satellite,
 }
 
 val SUPPORTED_RADIUS_METERS = listOf(300, 500, 1_000, 2_000, 3_000, 5_000, 10_000)
@@ -43,6 +49,9 @@ fun ExploreUiState.withRadius(radiusMeters: Int): ExploreUiState =
 
 fun ExploreUiState.withRouteMode(routeMode: RouteMode): ExploreUiState =
     copy(routeMode = routeMode, routePoints = emptyList())
+
+fun ExploreUiState.withMapVisualMode(mapVisualMode: MapVisualMode): ExploreUiState =
+    copy(mapVisualMode = mapVisualMode)
 
 fun ExploreUiState.withCurrentPoint(point: ExplorePoint): ExploreUiState =
     copy(currentPoint = point)
