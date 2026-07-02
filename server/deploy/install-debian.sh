@@ -275,7 +275,7 @@ install_managed_node() {
     log "Downloading Node.js v${version}"
     curl -fsSL "${base_url}/${filename}" -o "${tmp_dir}/${filename}"
     checksum_line="$(grep " ${filename}$" "${tmp_dir}/SHASUMS256.txt")"
-    (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c -)
+    (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c - >&2)
     mkdir -p "${RUNTIME_DIR}"
     tar -xJf "${tmp_dir}/${filename}" -C "${RUNTIME_DIR}"
   fi
@@ -610,7 +610,7 @@ health_check() {
 
   local attempt
   for attempt in $(seq 1 20); do
-    if curl -fsS --max-time 5 "http://127.0.0.1:${port}/health" >/dev/null; then
+    if curl -fsS --max-time 5 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
       log "Health check passed: http://127.0.0.1:${port}/health"
       return 0
     fi
