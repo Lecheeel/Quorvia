@@ -10,7 +10,7 @@ class ExploreUiStateTest {
     fun defaultStateIsWalkWithinGenerationBounds() {
         val state = ExploreUiState()
 
-        assertEquals(3, state.radiusKm)
+        assertEquals(3_000, state.radiusMeters)
         assertEquals(RouteMode.Walk, state.routeMode)
         assertFalse(state.canGenerate)
     }
@@ -24,8 +24,9 @@ class ExploreUiStateTest {
 
     @Test
     fun radiusIsClampedToSupportedBounds() {
-        assertEquals(MIN_RADIUS_KM, ExploreUiState().withRadius(-10).radiusKm)
-        assertEquals(MAX_RADIUS_KM, ExploreUiState().withRadius(99).radiusKm)
+        assertEquals(300, ExploreUiState().withRadius(-10).radiusMeters)
+        assertEquals(10_000, ExploreUiState().withRadius(99_000).radiusMeters)
+        assertEquals(500, ExploreUiState().withRadius(450).radiusMeters)
     }
 
     @Test
@@ -37,7 +38,7 @@ class ExploreUiStateTest {
 
     @Test
     fun invalidRadiusDisablesGenerationWhenStateIsConstructedExternally() {
-        assertFalse(ExploreUiState(radiusKm = 0).canGenerate)
-        assertFalse(ExploreUiState(radiusKm = 11).canGenerate)
+        assertFalse(ExploreUiState(radiusMeters = 0).canGenerate)
+        assertFalse(ExploreUiState(radiusMeters = 11_000).canGenerate)
     }
 }

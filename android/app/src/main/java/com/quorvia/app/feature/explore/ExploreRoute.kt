@@ -48,15 +48,31 @@ import com.amap.api.location.AMapLocationClientOption
 import com.amap.api.maps.CameraUpdateFactory
 import com.amap.api.maps.MapView
 import com.amap.api.maps.model.BitmapDescriptorFactory
+import com.amap.api.maps.model.Circle
 import com.amap.api.maps.model.CircleOptions
 import com.amap.api.maps.model.LatLng
+import com.amap.api.maps.model.LatLngBounds
+import com.amap.api.maps.model.Marker
 import com.amap.api.maps.model.MarkerOptions
 import com.amap.api.maps.model.MyLocationStyle
+import com.amap.api.maps.model.Polyline
 import com.amap.api.maps.model.PolylineOptions
+import com.amap.api.services.core.LatLonPoint
+import com.amap.api.services.route.BusRouteResult
+import com.amap.api.services.route.DrivePath
+import com.amap.api.services.route.DriveRouteResult
+import com.amap.api.services.route.RideRouteResult
+import com.amap.api.services.route.RouteSearch
+import com.amap.api.services.route.WalkPath
+import com.amap.api.services.route.WalkRouteResult
 import com.quorvia.app.ui.theme.QuorviaTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +106,7 @@ private fun ExploreScreen(
     val scope = rememberCoroutineScope()
     val qrngClient = remember { QrngClient() }
     val mapView = rememberMapViewWithLifecycle()
+    val mapRenderState = remember { MapRenderState() }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -134,6 +151,7 @@ private fun ExploreScreen(
     ) {
         AMapPanel(
             mapView = mapView,
+            renderState = mapRenderState,
             uiState = uiState,
             modifier = Modifier
                 .fillMaxWidth()
@@ -160,12 +178,14 @@ private fun ExploreScreen(
                         val randomValues = withContext(Dispatchers.IO) {
                             qrngClient.fetchUInt16(length = 2)
                         }
-                        generateTargetPoint(current, uiState.radiusKm, randomValues)
+                        val target = generateTargetPoint(current, uiState.radiusMeters, randomValues)
+                        val routePoints = fetchRoutePoints(context, uiState.routeMode, current, target)
+                        target to routePoints
                     }
 
                     result
-                        .onSuccess { target ->
-                            onStateChange(uiState.withTargetPoint(target))
+                        .onSuccess { (target, routePoints) ->
+                            onStateChange(uiState.withTargetRoute(target, routePoints))
                         }
                         .onFailure { error ->
                             onStateChange(
@@ -183,6 +203,7 @@ private fun ExploreScreen(
 @Composable
 private fun AMapPanel(
     mapView: MapView,
+    renderState: MapRenderState,
     uiState: ExploreUiState,
     modifier: Modifier = Modifier,
 ) {
@@ -196,10 +217,7 @@ private fun AMapPanel(
             modifier = Modifier.fillMaxSize(),
             factory = { mapView },
             update = {
-                it.renderExploreOverlays(uiState)
-                uiState.currentPoint?.let { point ->
-                    it.map.moveCamera(CameraUpdateFactory.newLatLngZoom(point.toLatLng(), 15f))
-                }
+                it.renderExploreOverlays(renderState, uiState)
             },
         )
     }
@@ -222,11 +240,16 @@ private fun ControlPanel(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text("Exploration radius", style = MaterialTheme.typography.titleSmall)
+            val radiusIndex = SUPPORTED_RADIUS_METERS.indexOf(uiState.radiusMeters)
+                .coerceAtLeast(0)
             Slider(
-                value = uiState.radiusKm.toFloat(),
-                onValueChange = { onRadiusChange(it.toInt()) },
-                valueRange = MIN_RADIUS_KM.toFloat()..MAX_RADIUS_KM.toFloat(),
-                steps = 8,
+                value = radiusIndex.toFloat(),
+                onValueChange = { index ->
+                    val selectedIndex = index.roundToInt().coerceIn(SUPPORTED_RADIUS_METERS.indices)
+                    onRadiusChange(SUPPORTED_RADIUS_METERS[selectedIndex])
+                },
+                valueRange = 0f..SUPPORTED_RADIUS_METERS.lastIndex.toFloat(),
+                steps = SUPPORTED_RADIUS_METERS.size - 2,
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -243,7 +266,7 @@ private fun ControlPanel(
                     label = { Text("Drive") },
                 )
                 Spacer(Modifier.size(1.dp).weight(1f))
-                Text("${uiState.radiusKm} km")
+                Text(formatRadius(uiState.radiusMeters))
             }
             StatusText(uiState.status)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -277,6 +300,13 @@ private fun StatusText(status: ExploreStatus) {
     }
     Text(text = text, style = MaterialTheme.typography.bodyMedium)
 }
+
+private fun formatRadius(radiusMeters: Int): String =
+    if (radiusMeters < 1_000) {
+        "${radiusMeters} m"
+    } else {
+        "${radiusMeters / 1_000} km"
+    }
 
 @Composable
 private fun rememberMapViewWithLifecycle(): MapView {
@@ -316,7 +346,6 @@ private fun startSingleLocation(
     client.setLocationListener { location ->
         if (location != null && location.errorCode == 0) {
             val point = ExplorePoint(location.latitude, location.longitude)
-            mapView.map.moveCamera(CameraUpdateFactory.newLatLngZoom(point.toLatLng(), 15f))
             onStateChange(state.withCurrentPoint(point).withStatus(ExploreStatus.Message("Location ready.")))
         } else {
             val message = location?.errorInfo ?: "Location failed."
@@ -335,37 +364,146 @@ private fun MapView.enableCurrentLocationCursor() {
     map.isMyLocationEnabled = true
 }
 
-private fun MapView.renderExploreOverlays(state: ExploreUiState) {
-    map.clear()
+private class MapRenderState {
+    var radiusCircle: Circle? = null
+    var targetMarker: Marker? = null
+    var routePolyline: Polyline? = null
+    var lastViewportKey: String? = null
+}
+
+private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: ExploreUiState) {
+    renderState.radiusCircle?.remove()
+    renderState.targetMarker?.remove()
+    renderState.routePolyline?.remove()
+
     state.currentPoint?.let { origin ->
-        map.addCircle(
+        renderState.radiusCircle = map.addCircle(
             CircleOptions()
                 .center(origin.toLatLng())
-                .radius(state.radiusKm * 1000.0)
+                .radius(state.radiusMeters.toDouble())
                 .strokeColor(0xFF2367F4.toInt())
                 .fillColor(0x222367F4)
                 .strokeWidth(4f),
         )
     }
-    val target = state.targetPoint ?: return
-    map.addMarker(
-        MarkerOptions()
-            .position(target.toLatLng())
-            .title("Quantum target")
-            .snippet("Generated from ANU/AQN entropy")
-            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)),
-    )
-    state.currentPoint?.let { origin ->
-        map.addPolyline(
+
+    state.targetPoint?.let { target ->
+        renderState.targetMarker = map.addMarker(
+            MarkerOptions()
+                .position(target.toLatLng())
+                .title("Quantum target")
+                .snippet("Generated from ANU/AQN entropy")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)),
+        )
+    }
+
+    if (state.routePoints.size >= 2) {
+        renderState.routePolyline = map.addPolyline(
             PolylineOptions()
-                .add(origin.toLatLng(), target.toLatLng())
+                .addAll(state.routePoints.map { it.toLatLng() })
                 .color(0xFF2367F4.toInt())
                 .width(8f),
         )
     }
+
+    fitViewportIfNeeded(renderState, state)
 }
 
 private fun ExplorePoint.toLatLng(): LatLng = LatLng(latitude, longitude)
+
+private fun ExplorePoint.toLatLonPoint(): LatLonPoint = LatLonPoint(latitude, longitude)
+
+private fun LatLonPoint.toExplorePoint(): ExplorePoint = ExplorePoint(latitude, longitude)
+
+private fun MapView.fitViewportIfNeeded(renderState: MapRenderState, state: ExploreUiState) {
+    val current = state.currentPoint ?: return
+    val key = buildString {
+        append(current.latitude).append(':').append(current.longitude)
+        append('|').append(state.radiusMeters)
+        append('|').append(state.targetPoint?.latitude).append(':').append(state.targetPoint?.longitude)
+        append('|').append(state.routePoints.size)
+    }
+    if (renderState.lastViewportKey == key) {
+        return
+    }
+    renderState.lastViewportKey = key
+
+    val points = buildList {
+        addAll(radiusBoundsPoints(current, state.radiusMeters))
+        state.targetPoint?.let { add(it) }
+        addAll(state.routePoints)
+    }
+    val bounds = LatLngBounds.builder().apply {
+        points.forEach { include(it.toLatLng()) }
+    }.build()
+    map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
+}
+
+private fun radiusBoundsPoints(center: ExplorePoint, radiusMeters: Int): List<ExplorePoint> =
+    listOf(
+        generateTargetPoint(center, radiusMeters, listOf(0, 65_535)),
+        generateTargetPoint(center, radiusMeters, listOf(16_384, 65_535)),
+        generateTargetPoint(center, radiusMeters, listOf(32_768, 65_535)),
+        generateTargetPoint(center, radiusMeters, listOf(49_152, 65_535)),
+    )
+
+private suspend fun fetchRoutePoints(
+    context: android.content.Context,
+    routeMode: RouteMode,
+    origin: ExplorePoint,
+    target: ExplorePoint,
+): List<ExplorePoint> = suspendCancellableCoroutine { continuation ->
+    val routeSearch = RouteSearch(context.applicationContext)
+    val fromAndTo = RouteSearch.FromAndTo(origin.toLatLonPoint(), target.toLatLonPoint())
+
+    routeSearch.setRouteSearchListener(
+        object : RouteSearch.OnRouteSearchListener {
+            override fun onDriveRouteSearched(result: DriveRouteResult?, errorCode: Int) {
+                if (routeMode != RouteMode.Drive || !continuation.isActive) return
+                val routePoints = result?.paths?.firstOrNull()?.toRoutePoints()
+                if (errorCode == AMAP_SUCCESS_CODE && !routePoints.isNullOrEmpty()) {
+                    continuation.resume(routePoints)
+                } else {
+                    continuation.resumeWithException(IllegalStateException("Drive route unavailable."))
+                }
+            }
+
+            override fun onWalkRouteSearched(result: WalkRouteResult?, errorCode: Int) {
+                if (routeMode != RouteMode.Walk || !continuation.isActive) return
+                val routePoints = result?.paths?.firstOrNull()?.toRoutePoints()
+                if (errorCode == AMAP_SUCCESS_CODE && !routePoints.isNullOrEmpty()) {
+                    continuation.resume(routePoints)
+                } else {
+                    continuation.resumeWithException(IllegalStateException("Walk route unavailable."))
+                }
+            }
+
+            override fun onBusRouteSearched(result: BusRouteResult?, errorCode: Int) = Unit
+
+            override fun onRideRouteSearched(result: RideRouteResult?, errorCode: Int) = Unit
+        },
+    )
+
+    when (routeMode) {
+        RouteMode.Walk -> {
+            val query = RouteSearch.WalkRouteQuery(fromAndTo, RouteSearch.WalkDefault)
+            routeSearch.calculateWalkRouteAsyn(query)
+        }
+
+        RouteMode.Drive -> {
+            val query = RouteSearch.DriveRouteQuery(fromAndTo, RouteSearch.DrivingDefault, null, null, "")
+            routeSearch.calculateDriveRouteAsyn(query)
+        }
+    }
+}
+
+private fun WalkPath.toRoutePoints(): List<ExplorePoint> =
+    steps.flatMap { step -> step.polyline.map { it.toExplorePoint() } }
+
+private fun DrivePath.toRoutePoints(): List<ExplorePoint> =
+    steps.flatMap { step -> step.polyline.map { it.toExplorePoint() } }
+
+private const val AMAP_SUCCESS_CODE = 1000
 
 @Preview
 @Composable

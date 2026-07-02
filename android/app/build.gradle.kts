@@ -71,8 +71,8 @@ android {
         applicationId = "com.quorvia.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
 
         manifestPlaceholders["AMAP_ANDROID_KEY"] =
             secretProperty("AMAP_ANDROID_KEY", "AMAP_ANDROID_RELEASE_KEY", "AMAP_ANDROID_DEBUG_KEY").orEmpty()
@@ -133,7 +133,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.amap.map3d)
+    implementation(libs.amap.map3d.location.search)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

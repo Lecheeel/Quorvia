@@ -11,7 +11,7 @@ class TargetGeneratorTest {
         val origin = ExplorePoint(latitude = 39.9087, longitude = 116.3975)
         val target = generateTargetPoint(
             origin = origin,
-            radiusKm = 3,
+            radiusMetersLimit = 3_000,
             randomValues = listOf(12_345, 54_321),
         )
 
@@ -22,7 +22,7 @@ class TargetGeneratorTest {
     fun generatorRejectsMissingEntropy() {
         generateTargetPoint(
             origin = ExplorePoint(latitude = 39.9087, longitude = 116.3975),
-            radiusKm = 3,
+            radiusMetersLimit = 3_000,
             randomValues = listOf(1),
         )
     }
