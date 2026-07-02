@@ -23,11 +23,11 @@ AQN_TIMEOUT_MS=15000
 Health check:
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:49030/health
 ```
 
 QRNG request:
 
 ```bash
-curl "http://localhost:8080/v1/qrng?type=uint16&length=32"
+curl "http://localhost:49030/v1/qrng?type=uint16&length=32"
 ```

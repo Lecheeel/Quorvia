@@ -32,7 +32,7 @@ Create `/etc/quorvia/qrng-proxy.env`:
 ```bash
 NODE_ENV=production
 HOST=127.0.0.1
-PORT=8080
+PORT=49030
 AQN_API_KEY=replace-with-real-key
 AQN_API_URL=https://api.quantumnumbers.anu.edu.au
 AQN_TIMEOUT_MS=15000
@@ -58,9 +58,9 @@ sudo systemctl status quorvia-qrng
 Health check:
 
 ```bash
-curl http://127.0.0.1:8080/health
-curl "http://127.0.0.1:8080/v1/qrng?type=uint16&length=4"
+curl http://127.0.0.1:49030/health
+curl "http://127.0.0.1:49030/v1/qrng?type=uint16&length=4"
 ```
 
 For public Android access, put Nginx/Caddy in front with HTTPS and proxy to
-`127.0.0.1:8080`.
+`127.0.0.1:49030`.
