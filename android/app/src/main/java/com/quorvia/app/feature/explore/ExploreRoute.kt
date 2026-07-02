@@ -1,7 +1,11 @@
 package com.quorvia.app.feature.explore
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -196,6 +200,18 @@ private fun ExploreScreen(
                         }
                 }
             },
+            onOpenNavigation = {
+                val current = uiState.currentPoint
+                val target = uiState.targetPoint
+                if (current == null || target == null) {
+                    onStateChange(uiState.withStatus(ExploreStatus.Error("Generate a route first.")))
+                    return@ControlPanel
+                }
+                val opened = openAmapNavigation(context, uiState.routeMode, current, target)
+                if (!opened) {
+                    onStateChange(uiState.withStatus(ExploreStatus.Error("AMap app is not installed.")))
+                }
+            },
         )
     }
 }
@@ -230,6 +246,7 @@ private fun ControlPanel(
     onRouteModeChange: (RouteMode) -> Unit,
     onLocate: () -> Unit,
     onGenerateRoute: () -> Unit,
+    onOpenNavigation: () -> Unit,
 ) {
     Card(
         shape = RoundedCornerShape(8.dp),
@@ -285,6 +302,14 @@ private fun ControlPanel(
                 ) {
                     Text("Generate")
                 }
+            }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 14.dp),
+                enabled = uiState.targetPoint != null,
+                onClick = onOpenNavigation,
+            ) {
+                Text("Open AMap Navigation")
             }
         }
     }
@@ -505,6 +530,43 @@ private fun DrivePath.toRoutePoints(): List<ExplorePoint> =
 
 private const val AMAP_SUCCESS_CODE = 1000
 
+private fun openAmapNavigation(
+    context: Context,
+    routeMode: RouteMode,
+    origin: ExplorePoint,
+    target: ExplorePoint,
+): Boolean {
+    val mode = when (routeMode) {
+        RouteMode.Walk -> "2"
+        RouteMode.Drive -> "0"
+    }
+    val uri = Uri.Builder()
+        .scheme("amapuri")
+        .authority("route")
+        .path("plan")
+        .appendQueryParameter("sourceApplication", "Quorvia")
+        .appendQueryParameter("slat", origin.latitude.toString())
+        .appendQueryParameter("slon", origin.longitude.toString())
+        .appendQueryParameter("sname", "Current location")
+        .appendQueryParameter("dlat", target.latitude.toString())
+        .appendQueryParameter("dlon", target.longitude.toString())
+        .appendQueryParameter("dname", "Quantum target")
+        .appendQueryParameter("dev", "0")
+        .appendQueryParameter("t", mode)
+        .build()
+    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addCategory(Intent.CATEGORY_DEFAULT)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    return try {
+        context.startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    }
+}
+
 @Preview
 @Composable
 private fun ExploreRoutePreview() {
@@ -518,6 +580,7 @@ private fun ExploreRoutePreview() {
             onRouteModeChange = {},
             onLocate = {},
             onGenerateRoute = {},
+            onOpenNavigation = {},
         )
     }
 }
