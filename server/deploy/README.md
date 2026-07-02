@@ -58,8 +58,12 @@ PORT=49030
 AQN_API_KEY=
 AQN_API_URL=https://api.quantumnumbers.anu.edu.au
 AQN_TIMEOUT_MS=15000
+ALLOW_DEBUG_RANDOM=false
 CORS_ORIGINS=*
 ```
+
+`ALLOW_DEBUG_RANDOM=true` enables `provider=debug` for mobile integration
+testing. Keep it `false` for normal production use.
 
 ## Status
 

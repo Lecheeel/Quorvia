@@ -1,11 +1,13 @@
 import { Agent, request } from "undici";
 import { z } from "zod";
+import { randomBytes, randomInt } from "node:crypto";
 import { config } from "./config.js";
 
 const randomRequestSchema = z.object({
   type: z.enum(["uint8", "uint16", "hex8", "hex16"]).default("uint16"),
   length: z.coerce.number().int().min(1).max(1024).default(32),
   size: z.coerce.number().int().min(1).max(1024).optional(),
+  provider: z.enum(["aqn", "debug"]).default("aqn"),
 });
 
 const aqnResponseSchema = z.object({
@@ -18,7 +20,7 @@ const aqnResponseSchema = z.object({
 export type RandomQuery = z.infer<typeof randomRequestSchema>;
 
 export type QuantumNumbers = {
-  source: "ANU Quantum Numbers";
+  source: "ANU Quantum Numbers" | "debug";
   type: RandomQuery["type"];
   length: number;
   values: Array<number | string>;
@@ -44,6 +46,13 @@ export function normalizeAqnResponse(input: unknown, query: RandomQuery): Quantu
 }
 
 export async function fetchQuantumNumbers(query: RandomQuery): Promise<QuantumNumbers> {
+  if (query.provider === "debug") {
+    if (!config.ALLOW_DEBUG_RANDOM) {
+      throw new DebugRandomNotAllowedError();
+    }
+    return generateDebugRandomNumbers(query);
+  }
+
   const endpoint = new URL(config.AQN_API_URL);
   endpoint.searchParams.set("type", query.type);
   endpoint.searchParams.set("length", String(query.length));
@@ -75,5 +84,33 @@ export async function fetchQuantumNumbers(query: RandomQuery): Promise<QuantumNu
     return normalizeAqnResponse(JSON.parse(bodyText), query);
   } catch {
     throw new Error("AQN returned an unexpected response");
+  }
+}
+
+export class DebugRandomNotAllowedError extends Error {
+  constructor() {
+    super("Debug random provider is not enabled");
+  }
+}
+
+export function generateDebugRandomNumbers(query: RandomQuery): QuantumNumbers {
+  return {
+    source: "debug",
+    type: query.type,
+    length: query.length,
+    values: Array.from({ length: query.length }, () => generateDebugValue(query.type)),
+  };
+}
+
+function generateDebugValue(type: RandomQuery["type"]): number | string {
+  switch (type) {
+    case "uint8":
+      return randomInt(0, 256);
+    case "uint16":
+      return randomInt(0, 65_536);
+    case "hex8":
+      return randomBytes(1).toString("hex");
+    case "hex16":
+      return randomBytes(2).toString("hex");
   }
 }

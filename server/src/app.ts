@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import { ZodError } from "zod";
 import { corsOrigins } from "./config.js";
 import {
+  DebugRandomNotAllowedError,
   fetchQuantumNumbers,
   parseRandomQuery,
   type QuantumNumbers,
@@ -46,6 +47,13 @@ export function buildApp(options: BuildAppOptions = {}) {
         return reply.code(400).send({
           error: "invalid_query",
           details: error.issues,
+        });
+      }
+
+      if (error instanceof DebugRandomNotAllowedError) {
+        return reply.code(403).send({
+          error: "debug_random_disabled",
+          message: "Debug random provider is disabled on this server.",
         });
       }
 

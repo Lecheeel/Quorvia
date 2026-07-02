@@ -20,6 +20,7 @@ Quorvia 是一个面向 Android 的量子随机现实探索应用原型。它使
 - Android 本地单元测试覆盖探索 UI 状态边界。
 - Node QRNG 代理已支持 `/health` 和 `/v1/qrng`。
 - QRNG 代理已对 AQN 响应进行归一化和长度一致性校验。
+- Android 设置页已支持隐藏开发者模式，可显式切换 Debug 随机源用于联调。
 - 已提供 Debian 13 + systemd 部署模板。
 - 已提供根级串行验证脚本。
 
@@ -78,9 +79,11 @@ npm run dev
 ```text
 GET /health
 GET /v1/qrng?type=uint16&length=4
+GET /v1/qrng?type=uint16&length=4&provider=debug
 ```
 
 如果 ANU/AQN 不可用，代理返回 `502 qrng_unavailable`，不会使用任何本地随机 fallback。
+`provider=debug` 只用于移动端联调，服务端必须显式设置 `ALLOW_DEBUG_RANDOM=true` 才会启用；默认关闭并返回 `403 debug_random_disabled`。
 
 ### Android
 
@@ -94,6 +97,8 @@ cd android
 ```
 
 当前使用 compile/target SDK 36。Android lint 会提示 Android 37 和更新 AndroidX 版本，但当前本机 SDK 仓库未暴露 `platforms;android-37`，因此暂时保持 Android 36 可构建线。
+
+设置页连续点击 `About Quorvia` 七次可打开开发者模式；选择 Debug 随机源后，主页面会显示明显调试标识。
 
 ### 部署
 
@@ -135,6 +140,7 @@ Quorvia is an Android-first quantum-random real-world exploration prototype. It 
 - Android unit tests cover exploration UI state boundaries.
 - Node QRNG proxy supports `/health` and `/v1/qrng`.
 - QRNG responses are normalized and validated for length consistency.
+- Android settings include a hidden developer mode for explicitly selecting the Debug random source during integration testing.
 - Debian 13 + systemd deployment templates are included.
 - A root serial verification script is included.
 
@@ -193,9 +199,11 @@ Endpoints:
 ```text
 GET /health
 GET /v1/qrng?type=uint16&length=4
+GET /v1/qrng?type=uint16&length=4&provider=debug
 ```
 
 If ANU/AQN is unavailable, the proxy returns `502 qrng_unavailable` and does not use any local random fallback.
+`provider=debug` is only for mobile integration testing. The server must explicitly set `ALLOW_DEBUG_RANDOM=true`; it is disabled by default and returns `403 debug_random_disabled`.
 
 ### Android
 
@@ -209,6 +217,8 @@ cd android
 ```
 
 The project currently uses compile/target SDK 36. Android lint reports Android 37 and newer AndroidX versions, but the local SDK repository does not currently expose `platforms;android-37`, so the project stays on the Android 36 buildable line for now.
+
+Tap `About Quorvia` seven times in Settings to unlock developer mode. When the Debug random source is selected, the main screen shows a clear debug marker.
 
 ### Deployment
 

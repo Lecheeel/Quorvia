@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildApp } from "../src/app.js";
 import {
+  DebugRandomNotAllowedError,
+  generateDebugRandomNumbers,
   normalizeAqnResponse,
   parseRandomQuery,
   type RandomQuery,
@@ -11,6 +13,7 @@ test("parseRandomQuery applies safe defaults", () => {
   assert.deepEqual(parseRandomQuery({}), {
     type: "uint16",
     length: 32,
+    provider: "aqn",
   });
 });
 
@@ -37,7 +40,7 @@ test("normalizeAqnResponse accepts valid ANU payloads", () => {
         length: "2",
         data: [123, 456],
       },
-      { type: "uint16", length: 2 },
+      { type: "uint16", length: 2, provider: "aqn" },
     ),
     {
       source: "ANU Quantum Numbers",
@@ -58,7 +61,7 @@ test("normalizeAqnResponse rejects mismatched payload lengths", () => {
           length: "3",
           data: [123, 456],
         },
-        { type: "uint16", length: 3 },
+        { type: "uint16", length: 3, provider: "aqn" },
       ),
     /length mismatch/,
   );
@@ -74,7 +77,7 @@ test("normalizeAqnResponse rejects unsuccessful upstream payloads", () => {
           length: "2",
           data: [123, 456],
         },
-        { type: "uint16", length: 2 },
+        { type: "uint16", length: 2, provider: "aqn" },
       ),
     /Invalid input/,
   );
@@ -152,7 +155,66 @@ test("qrng endpoint returns normalized upstream values", async () => {
       length: 4,
       values: [1, 2, 3, 4],
     });
-    assert.deepEqual(seenQueries, [{ type: "uint16", length: 4 }]);
+    assert.deepEqual(seenQueries, [{ type: "uint16", length: 4, provider: "aqn" }]);
+  } finally {
+    await app.close();
+  }
+});
+
+test("generateDebugRandomNumbers marks debug source", () => {
+  const result = generateDebugRandomNumbers({
+    type: "uint16",
+    length: 4,
+    provider: "debug",
+  });
+
+  assert.equal(result.source, "debug");
+  assert.equal(result.type, "uint16");
+  assert.equal(result.length, 4);
+  assert.equal(result.values.length, 4);
+  assert.ok(result.values.every((value) => Number.isInteger(value)));
+});
+
+test("qrng endpoint can return debug provider values when fetcher allows it", async () => {
+  const app = buildApp({
+    fetcher: async (query) => generateDebugRandomNumbers(query),
+  });
+
+  try {
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/qrng?type=uint8&length=3&provider=debug",
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.equal(body.source, "debug");
+    assert.equal(body.type, "uint8");
+    assert.equal(body.length, 3);
+    assert.equal(body.values.length, 3);
+  } finally {
+    await app.close();
+  }
+});
+
+test("qrng endpoint rejects debug provider when server config disables it", async () => {
+  const app = buildApp({
+    fetcher: async () => {
+      throw new DebugRandomNotAllowedError();
+    },
+  });
+
+  try {
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/qrng?type=uint8&length=3&provider=debug",
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.deepEqual(response.json(), {
+      error: "debug_random_disabled",
+      message: "Debug random provider is disabled on this server.",
+    });
   } finally {
     await app.close();
   }

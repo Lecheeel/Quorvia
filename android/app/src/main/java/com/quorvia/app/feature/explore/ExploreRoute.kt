@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -69,6 +70,7 @@ import com.amap.api.services.route.RideRouteResult
 import com.amap.api.services.route.RouteSearch
 import com.amap.api.services.route.WalkPath
 import com.amap.api.services.route.WalkRouteResult
+import com.quorvia.app.settings.DeveloperSettings
 import com.quorvia.app.ui.theme.QuorviaTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,17 +82,26 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExploreRoute() {
+fun ExploreRoute(
+    developerSettings: DeveloperSettings,
+    onOpenSettings: () -> Unit,
+) {
     var uiState by remember { mutableStateOf(ExploreUiState()) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Quorvia", fontWeight = FontWeight.SemiBold) },
+                actions = {
+                    TextButton(onClick = onOpenSettings) {
+                        Text("Settings")
+                    }
+                },
             )
         },
     ) { padding ->
         ExploreScreen(
+            developerSettings = developerSettings,
             uiState = uiState,
             onStateChange = { uiState = it },
             modifier = Modifier
@@ -102,6 +113,7 @@ fun ExploreRoute() {
 
 @Composable
 private fun ExploreScreen(
+    developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onStateChange: (ExploreUiState) -> Unit,
     modifier: Modifier = Modifier,
@@ -163,6 +175,7 @@ private fun ExploreScreen(
         )
 
         ControlPanel(
+            developerSettings = developerSettings,
             uiState = uiState,
             onRadiusChange = { onStateChange(uiState.withRadius(it)) },
             onRouteModeChange = { onStateChange(uiState.withRouteMode(it)) },
@@ -179,10 +192,13 @@ private fun ExploreScreen(
                 onStateChange(uiState.withStatus(ExploreStatus.Loading))
                 scope.launch {
                     val result = runCatching {
-                        val randomValues = withContext(Dispatchers.IO) {
-                            qrngClient.fetchUInt16(length = 2)
+                        val qrngResponse = withContext(Dispatchers.IO) {
+                            qrngClient.fetchUInt16(
+                                length = 2,
+                                provider = developerSettings.randomProvider,
+                            )
                         }
-                        val target = generateTargetPoint(current, uiState.radiusMeters, randomValues)
+                        val target = generateTargetPoint(current, uiState.radiusMeters, qrngResponse.values)
                         val routePoints = fetchRoutePoints(context, uiState.routeMode, current, target)
                         target to routePoints
                     }
@@ -241,6 +257,7 @@ private fun AMapPanel(
 
 @Composable
 private fun ControlPanel(
+    developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onRadiusChange: (Int) -> Unit,
     onRouteModeChange: (RouteMode) -> Unit,
@@ -256,6 +273,19 @@ private fun ControlPanel(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (developerSettings.isDebugRandom) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                ) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        text = "DEBUG RANDOM SOURCE",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
             Text("Exploration radius", style = MaterialTheme.typography.titleSmall)
             val radiusIndex = SUPPORTED_RADIUS_METERS.indexOf(uiState.radiusMeters)
                 .coerceAtLeast(0)
@@ -572,6 +602,7 @@ private fun openAmapNavigation(
 private fun ExploreRoutePreview() {
     QuorviaTheme {
         ControlPanel(
+            developerSettings = DeveloperSettings(),
             uiState = ExploreUiState(
                 currentPoint = ExplorePoint(39.9087, 116.3975),
                 status = ExploreStatus.Message("Location ready."),

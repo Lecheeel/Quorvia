@@ -7,6 +7,7 @@ const configSchema = z.object({
   AQN_API_KEY: z.string().min(1, "AQN_API_KEY is required"),
   AQN_API_URL: z.url().default("https://api.quantumnumbers.anu.edu.au"),
   AQN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(15000),
+  ALLOW_DEBUG_RANDOM: z.coerce.boolean().default(false),
   CORS_ORIGINS: z.string().default("*"),
 });
 
