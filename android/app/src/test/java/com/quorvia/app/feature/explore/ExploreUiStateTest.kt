@@ -12,6 +12,13 @@ class ExploreUiStateTest {
 
         assertEquals(3, state.radiusKm)
         assertEquals(RouteMode.Walk, state.routeMode)
+        assertFalse(state.canGenerate)
+    }
+
+    @Test
+    fun stateCanGenerateWhenLocationIsReady() {
+        val state = ExploreUiState(currentPoint = ExplorePoint(39.9, 116.4))
+
         assertTrue(state.canGenerate)
     }
 
@@ -34,4 +41,3 @@ class ExploreUiStateTest {
         assertFalse(ExploreUiState(radiusKm = 11).canGenerate)
     }
 }
-
