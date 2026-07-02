@@ -16,11 +16,12 @@ With a public domain and automatic HTTPS via Caddy:
 curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --domain example.com
 ```
 
-For direct public-IP access from the Android APK, bind the service to all
-interfaces and open TCP `49030` in your cloud firewall/security group:
+By default, the service binds to `0.0.0.0:49030` for direct public-IP access
+from the Android APK. Open TCP `49030` in your cloud firewall/security group.
+To force a specific bind host:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --host 0.0.0.0
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --host 127.0.0.1
 ```
 
 The installer:
@@ -52,7 +53,7 @@ Default production environment:
 
 ```bash
 NODE_ENV=production
-HOST=127.0.0.1
+HOST=0.0.0.0
 PORT=49030
 AQN_API_KEY=
 AQN_API_URL=https://api.quantumnumbers.anu.edu.au

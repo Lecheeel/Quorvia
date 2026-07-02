@@ -31,7 +31,7 @@ REMOVE_CADDY="0"
 YES="0"
 LAST_BACKUP=""
 AQN_API_KEY_INPUT=""
-HOST_INPUT=""
+HOST_INPUT="0.0.0.0"
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*" >&2
@@ -68,7 +68,7 @@ Options:
   --force-node           Install managed Node.js even if an acceptable node exists.
   --repo-url URL         Git repository to install from. Defaults to Quorvia on GitHub.
   --ref REF              Git branch or tag to install from. Defaults to master.
-  --host HOST            Set HOST in the service env file, for example 0.0.0.0.
+  --host HOST            Set HOST in the service env file. Defaults to 0.0.0.0.
   --aqn-api-key KEY      Set AQN_API_KEY non-interactively on first install.
   -y, --yes              Do not prompt for confirmation.
   -h, --help             Show this help.
@@ -353,7 +353,7 @@ write_env_template() {
   fi
   cat >"${ENV_FILE}" <<'EOF'
 NODE_ENV=production
-HOST=127.0.0.1
+HOST=0.0.0.0
 PORT=49030
 AQN_API_KEY=
 AQN_API_URL=https://api.quantumnumbers.anu.edu.au

@@ -104,6 +104,7 @@ curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/depl
 ```
 
 首次安装会提示输入并保存 `AQN_API_KEY`；后续升级会保留现有配置。
+服务端默认监听 `0.0.0.0:49030`，需要在云服务器安全组放行 TCP `49030`。
 
 后端部署文档见：
 
@@ -218,6 +219,7 @@ curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/depl
 ```
 
 The first install prompts for `AQN_API_KEY`; later upgrades keep the existing configuration.
+The server binds to `0.0.0.0:49030` by default; allow TCP `49030` in the cloud security group.
 
 Backend deployment docs:
 
