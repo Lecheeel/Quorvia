@@ -607,9 +607,19 @@ health_check() {
   local port
   port="$(env_value PORT)"
   systemctl restart "${SERVICE_NAME}"
-  sleep 2
-  curl -fsS --max-time 10 "http://127.0.0.1:${port}/health" >/dev/null
-  log "Health check passed: http://127.0.0.1:${port}/health"
+
+  local attempt
+  for attempt in $(seq 1 20); do
+    if curl -fsS --max-time 5 "http://127.0.0.1:${port}/health" >/dev/null; then
+      log "Health check passed: http://127.0.0.1:${port}/health"
+      return 0
+    fi
+    sleep 1
+  done
+
+  systemctl --no-pager --full status "${SERVICE_NAME}" || true
+  journalctl -u "${SERVICE_NAME}" -n 80 --no-pager || true
+  return 1
 }
 
 install_or_upgrade() {
