@@ -31,6 +31,7 @@ REMOVE_CADDY="0"
 YES="0"
 LAST_BACKUP=""
 AQN_API_KEY_INPUT=""
+HOST_INPUT=""
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*" >&2
@@ -67,6 +68,7 @@ Options:
   --force-node           Install managed Node.js even if an acceptable node exists.
   --repo-url URL         Git repository to install from. Defaults to Quorvia on GitHub.
   --ref REF              Git branch or tag to install from. Defaults to master.
+  --host HOST            Set HOST in the service env file, for example 0.0.0.0.
   --aqn-api-key KEY      Set AQN_API_KEY non-interactively on first install.
   -y, --yes              Do not prompt for confirmation.
   -h, --help             Show this help.
@@ -122,6 +124,11 @@ while [[ $# -gt 0 ]]; do
     --ref)
       [[ $# -ge 2 ]] || die "--ref requires a value"
       REPO_REF="$2"
+      shift 2
+      ;;
+    --host)
+      [[ $# -ge 2 ]] || die "--host requires a value"
+      HOST_INPUT="$2"
       shift 2
       ;;
     --aqn-api-key)
@@ -356,6 +363,13 @@ EOF
   chown root:root "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
   log "Created ${ENV_FILE}"
+}
+
+apply_env_overrides() {
+  if [[ -n "${HOST_INPUT}" ]]; then
+    set_env_value "HOST" "${HOST_INPUT}"
+    log "Saved HOST=${HOST_INPUT} to ${ENV_FILE}"
+  fi
 }
 
 set_env_value() {
@@ -631,6 +645,7 @@ install_or_upgrade() {
   local node_bin can_start
   node_bin="$(resolve_node)"
   write_env_template
+  apply_env_overrides
   prompt_for_api_key_if_needed || true
   can_start="0"
   if validate_env_file; then

@@ -16,6 +16,13 @@ With a public domain and automatic HTTPS via Caddy:
 curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --domain example.com
 ```
 
+For direct public-IP access from the Android APK, bind the service to all
+interfaces and open TCP `49030` in your cloud firewall/security group:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --host 0.0.0.0
+```
+
 The installer:
 
 - installs required Debian packages;
@@ -104,6 +111,7 @@ Useful options:
 ```bash
 --ref master
 --repo-url https://github.com/Lecheeel/Quorvia.git
+--host 0.0.0.0
 --aqn-api-key replace-with-real-key
 --node-version 24.18.0
 --force-node
