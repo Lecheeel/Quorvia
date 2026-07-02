@@ -1,4 +1,5 @@
 .quorvia.local.env
+pre-plan.md
 *.jks
 *.keystore
 *.p12
