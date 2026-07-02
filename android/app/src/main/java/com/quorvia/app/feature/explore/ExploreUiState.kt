@@ -2,7 +2,6 @@ package com.quorvia.app.feature.explore
 
 data class ExploreUiState(
     val radiusMeters: Int = DEFAULT_RADIUS_METERS,
-    val routeMode: RouteMode = RouteMode.Walk,
     val mapVisualMode: MapVisualMode = MapVisualMode.Normal,
     val currentPoint: ExplorePoint? = null,
     val targetPoint: ExplorePoint? = null,
@@ -17,6 +16,7 @@ data class ExploreUiState(
 
 enum class RouteMode {
     Walk,
+    Ride,
     Drive,
 }
 
@@ -47,8 +47,15 @@ fun ExploreUiState.withRadius(radiusMeters: Int): ExploreUiState =
         routePoints = emptyList(),
     )
 
-fun ExploreUiState.withRouteMode(routeMode: RouteMode): ExploreUiState =
-    copy(routeMode = routeMode, routePoints = emptyList())
+val ExploreUiState.routeMode: RouteMode
+    get() = routeModeForRadius(radiusMeters)
+
+fun routeModeForRadius(radiusMeters: Int): RouteMode =
+    when {
+        radiusMeters < 1_000 -> RouteMode.Walk
+        radiusMeters <= 2_000 -> RouteMode.Ride
+        else -> RouteMode.Drive
+    }
 
 fun ExploreUiState.withMapVisualMode(mapVisualMode: MapVisualMode): ExploreUiState =
     copy(mapVisualMode = mapVisualMode)

@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
@@ -77,6 +78,7 @@ import com.amap.api.services.route.RideRouteResult
 import com.amap.api.services.route.RouteSearch
 import com.amap.api.services.route.WalkPath
 import com.amap.api.services.route.WalkRouteResult
+import com.quorvia.app.feature.history.RouteHistoryRecord
 import com.quorvia.app.settings.DeveloperSettings
 import com.quorvia.app.ui.theme.QuorviaTheme
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +93,8 @@ import kotlin.math.roundToInt
 fun ExploreRoute(
     developerSettings: DeveloperSettings,
     onOpenSettings: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onRouteGenerated: (RouteHistoryRecord) -> Unit,
 ) {
     var uiState by remember { mutableStateOf(ExploreUiState()) }
 
@@ -99,6 +103,8 @@ fun ExploreRoute(
         uiState = uiState,
         onStateChange = { uiState = it },
         onOpenSettings = onOpenSettings,
+        onOpenHistory = onOpenHistory,
+        onRouteGenerated = onRouteGenerated,
         modifier = Modifier.fillMaxSize(),
     )
 }
@@ -109,6 +115,8 @@ private fun ExploreScreen(
     uiState: ExploreUiState,
     onStateChange: (ExploreUiState) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onRouteGenerated: (RouteHistoryRecord) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -170,20 +178,26 @@ private fun ExploreScreen(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
 
-        FilledTonalIconButton(
+        Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 16.dp),
-            onClick = { startSingleLocation(context, onStateChange, uiState, mapView) },
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(Icons.Outlined.MyLocation, contentDescription = "Locate")
+            FilledTonalIconButton(
+                onClick = { startSingleLocation(context, onStateChange, uiState, mapView) },
+            ) {
+                Icon(Icons.Outlined.MyLocation, contentDescription = "Locate")
+            }
+            FilledTonalIconButton(onClick = onOpenHistory) {
+                Icon(Icons.Outlined.History, contentDescription = "History")
+            }
         }
 
         FloatingControlPanel(
             developerSettings = developerSettings,
             uiState = uiState,
             onRadiusChange = { onStateChange(uiState.withRadius(it)) },
-            onRouteModeChange = { onStateChange(uiState.withRouteMode(it)) },
             onMapVisualModeChange = { onStateChange(uiState.withMapVisualMode(it)) },
             onGenerateRoute = {
                 generateRoute(
@@ -193,6 +207,7 @@ private fun ExploreScreen(
                     developerSettings = developerSettings,
                     uiState = uiState,
                     onStateChange = onStateChange,
+                    onRouteGenerated = onRouteGenerated,
                 )
             },
             onOpenNavigation = {
@@ -256,7 +271,6 @@ private fun FloatingControlPanel(
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onRadiusChange: (Int) -> Unit,
-    onRouteModeChange: (RouteMode) -> Unit,
     onMapVisualModeChange: (MapVisualMode) -> Unit,
     onGenerateRoute: () -> Unit,
     onOpenNavigation: () -> Unit,
@@ -334,16 +348,8 @@ private fun FloatingControlPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        FilterChip(
-                            selected = uiState.routeMode == RouteMode.Walk,
-                            onClick = { onRouteModeChange(RouteMode.Walk) },
-                            label = { Text("Walk") },
-                        )
-                        FilterChip(
-                            selected = uiState.routeMode == RouteMode.Drive,
-                            onClick = { onRouteModeChange(RouteMode.Drive) },
-                            label = { Text("Drive") },
-                        )
+                        Text("Route", style = MaterialTheme.typography.titleSmall)
+                        Text(uiState.routeMode.label, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.size(1.dp).weight(1f))
                         Text(formatRadius(uiState.radiusMeters))
                     }
@@ -384,6 +390,7 @@ private fun generateRoute(
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onStateChange: (ExploreUiState) -> Unit,
+    onRouteGenerated: (RouteHistoryRecord) -> Unit,
 ) {
     val current = uiState.currentPoint
     if (current == null) {
@@ -402,11 +409,27 @@ private fun generateRoute(
             }
             val target = generateTargetPoint(current, uiState.radiusMeters, qrngResponse.values)
             val routePoints = fetchRoutePoints(context, uiState.routeMode, current, target)
-            target to routePoints
+            Triple(qrngResponse, target, routePoints)
         }
 
         result
-            .onSuccess { (target, routePoints) ->
+            .onSuccess { (qrngResponse, target, routePoints) ->
+                onRouteGenerated(
+                    RouteHistoryRecord(
+                        id = "${System.currentTimeMillis()}-${target.latitude}-${target.longitude}",
+                        createdAtMillis = System.currentTimeMillis(),
+                        randomProvider = developerSettings.randomProvider,
+                        randomSource = qrngResponse.source,
+                        radiusMeters = uiState.radiusMeters,
+                        routeMode = uiState.routeMode,
+                        mapVisualMode = uiState.mapVisualMode,
+                        originLatitude = current.latitude,
+                        originLongitude = current.longitude,
+                        targetLatitude = target.latitude,
+                        targetLongitude = target.longitude,
+                        routePointCount = routePoints.size,
+                    ),
+                )
                 onStateChange(uiState.withTargetRoute(target, routePoints))
             }
             .onFailure { error ->
@@ -439,6 +462,7 @@ private fun openGeneratedNavigation(
 private val RouteMode.label: String
     get() = when (this) {
         RouteMode.Walk -> "Walk"
+        RouteMode.Ride -> "Ride"
         RouteMode.Drive -> "Drive"
     }
 
@@ -645,7 +669,15 @@ private suspend fun fetchRoutePoints(
 
             override fun onBusRouteSearched(result: BusRouteResult?, errorCode: Int) = Unit
 
-            override fun onRideRouteSearched(result: RideRouteResult?, errorCode: Int) = Unit
+            override fun onRideRouteSearched(result: RideRouteResult?, errorCode: Int) {
+                if (routeMode != RouteMode.Ride || !continuation.isActive) return
+                val routePoints = result?.paths?.firstOrNull()?.toRoutePoints()
+                if (errorCode == AMAP_SUCCESS_CODE && !routePoints.isNullOrEmpty()) {
+                    continuation.resume(routePoints)
+                } else {
+                    continuation.resumeWithException(IllegalStateException("Ride route unavailable."))
+                }
+            }
         },
     )
 
@@ -653,6 +685,11 @@ private suspend fun fetchRoutePoints(
         RouteMode.Walk -> {
             val query = RouteSearch.WalkRouteQuery(fromAndTo, RouteSearch.WalkDefault)
             routeSearch.calculateWalkRouteAsyn(query)
+        }
+
+        RouteMode.Ride -> {
+            val query = RouteSearch.RideRouteQuery(fromAndTo)
+            routeSearch.calculateRideRouteAsyn(query)
         }
 
         RouteMode.Drive -> {
@@ -668,6 +705,9 @@ private fun WalkPath.toRoutePoints(): List<ExplorePoint> =
 private fun DrivePath.toRoutePoints(): List<ExplorePoint> =
     steps.flatMap { step -> step.polyline.map { it.toExplorePoint() } }
 
+private fun com.amap.api.services.route.RidePath.toRoutePoints(): List<ExplorePoint> =
+    steps.flatMap { step -> step.polyline.map { it.toExplorePoint() } }
+
 private const val AMAP_SUCCESS_CODE = 1000
 
 private fun openAmapNavigation(
@@ -678,6 +718,7 @@ private fun openAmapNavigation(
 ): Boolean {
     val mode = when (routeMode) {
         RouteMode.Walk -> "2"
+        RouteMode.Ride -> "3"
         RouteMode.Drive -> "0"
     }
     val uri = Uri.Builder()
@@ -718,7 +759,6 @@ private fun ExploreRoutePreview() {
                 status = ExploreStatus.Message("Location ready."),
             ),
             onRadiusChange = {},
-            onRouteModeChange = {},
             onMapVisualModeChange = {},
             onGenerateRoute = {},
             onOpenNavigation = {},

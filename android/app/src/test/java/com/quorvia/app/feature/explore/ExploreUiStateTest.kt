@@ -7,11 +7,11 @@ import org.junit.Test
 
 class ExploreUiStateTest {
     @Test
-    fun defaultStateIsWalkWithinGenerationBounds() {
+    fun defaultStateIsDriveWithinGenerationBounds() {
         val state = ExploreUiState()
 
         assertEquals(3_000, state.radiusMeters)
-        assertEquals(RouteMode.Walk, state.routeMode)
+        assertEquals(RouteMode.Drive, state.routeMode)
         assertFalse(state.canGenerate)
     }
 
@@ -30,10 +30,11 @@ class ExploreUiStateTest {
     }
 
     @Test
-    fun routeModeCanSwitchToDrive() {
-        val state = ExploreUiState().withRouteMode(RouteMode.Drive)
-
-        assertEquals(RouteMode.Drive, state.routeMode)
+    fun routeModeIsDerivedFromRadius() {
+        assertEquals(RouteMode.Walk, ExploreUiState().withRadius(300).routeMode)
+        assertEquals(RouteMode.Ride, ExploreUiState().withRadius(1_000).routeMode)
+        assertEquals(RouteMode.Ride, ExploreUiState().withRadius(2_000).routeMode)
+        assertEquals(RouteMode.Drive, ExploreUiState().withRadius(3_000).routeMode)
     }
 
     @Test
