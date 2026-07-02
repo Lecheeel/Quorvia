@@ -9,29 +9,36 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -80,7 +87,6 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreRoute(
     developerSettings: DeveloperSettings,
@@ -88,27 +94,13 @@ fun ExploreRoute(
 ) {
     var uiState by remember { mutableStateOf(ExploreUiState()) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Quorvia", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    TextButton(onClick = onOpenSettings) {
-                        Text("Settings")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        ExploreScreen(
-            developerSettings = developerSettings,
-            uiState = uiState,
-            onStateChange = { uiState = it },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        )
-    }
+    ExploreScreen(
+        developerSettings = developerSettings,
+        uiState = uiState,
+        onStateChange = { uiState = it },
+        onOpenSettings = onOpenSettings,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 @Composable
@@ -116,6 +108,7 @@ private fun ExploreScreen(
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onStateChange: (ExploreUiState) -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -161,74 +154,54 @@ private fun ExploreScreen(
         }
     }
 
-    Column(
-        modifier = modifier.padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    Box(modifier = modifier) {
         AMapPanel(
             mapView = mapView,
             renderState = mapRenderState,
             uiState = uiState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            modifier = Modifier.fillMaxSize(),
         )
 
-        ControlPanel(
+        TopOverlay(
+            onOpenSettings = onOpenSettings,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+
+        FilledTonalIconButton(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 16.dp),
+            onClick = { startSingleLocation(context, onStateChange, uiState, mapView) },
+        ) {
+            Icon(Icons.Outlined.MyLocation, contentDescription = "Locate")
+        }
+
+        FloatingControlPanel(
             developerSettings = developerSettings,
             uiState = uiState,
             onRadiusChange = { onStateChange(uiState.withRadius(it)) },
             onRouteModeChange = { onStateChange(uiState.withRouteMode(it)) },
             onMapVisualModeChange = { onStateChange(uiState.withMapVisualMode(it)) },
-            onLocate = {
-                startSingleLocation(context, onStateChange, uiState, mapView)
-            },
             onGenerateRoute = {
-                val current = uiState.currentPoint
-                if (current == null) {
-                    onStateChange(uiState.withStatus(ExploreStatus.Error("Waiting for current location.")))
-                    return@ControlPanel
-                }
-
-                onStateChange(uiState.withStatus(ExploreStatus.Loading))
-                scope.launch {
-                    val result = runCatching {
-                        val qrngResponse = withContext(Dispatchers.IO) {
-                            qrngClient.fetchUInt16(
-                                length = 2,
-                                provider = developerSettings.randomProvider,
-                            )
-                        }
-                        val target = generateTargetPoint(current, uiState.radiusMeters, qrngResponse.values)
-                        val routePoints = fetchRoutePoints(context, uiState.routeMode, current, target)
-                        target to routePoints
-                    }
-
-                    result
-                        .onSuccess { (target, routePoints) ->
-                            onStateChange(uiState.withTargetRoute(target, routePoints))
-                        }
-                        .onFailure { error ->
-                            onStateChange(
-                                uiState.withStatus(
-                                    ExploreStatus.Error(error.message ?: "Quantum random source unavailable."),
-                                ),
-                            )
-                        }
-                }
+                generateRoute(
+                    context = context,
+                    scope = scope,
+                    qrngClient = qrngClient,
+                    developerSettings = developerSettings,
+                    uiState = uiState,
+                    onStateChange = onStateChange,
+                )
             },
             onOpenNavigation = {
-                val current = uiState.currentPoint
-                val target = uiState.targetPoint
-                if (current == null || target == null) {
-                    onStateChange(uiState.withStatus(ExploreStatus.Error("Generate a route first.")))
-                    return@ControlPanel
-                }
-                val opened = openAmapNavigation(context, uiState.routeMode, current, target)
-                if (!opened) {
-                    onStateChange(uiState.withStatus(ExploreStatus.Error("AMap app is not installed.")))
-                }
+                openGeneratedNavigation(context, uiState, onStateChange)
             },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         )
     }
 }
@@ -240,44 +213,70 @@ private fun AMapPanel(
     uiState: ExploreUiState,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    AndroidView(
         modifier = modifier,
-        tonalElevation = 2.dp,
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
+        factory = { mapView },
+        update = {
+            it.renderExploreOverlays(renderState, uiState)
+        },
+    )
+}
+
+@Composable
+private fun TopOverlay(
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        tonalElevation = 4.dp,
+        shadowElevation = 4.dp,
     ) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { mapView },
-            update = {
-                it.renderExploreOverlays(renderState, uiState)
-            },
-        )
+        Row(
+            modifier = Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                modifier = Modifier.weight(1f),
+                text = "Quorvia",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+            }
+        }
     }
 }
 
 @Composable
-private fun ControlPanel(
+private fun FloatingControlPanel(
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onRadiusChange: (Int) -> Unit,
     onRouteModeChange: (RouteMode) -> Unit,
     onMapVisualModeChange: (MapVisualMode) -> Unit,
-    onLocate: () -> Unit,
     onGenerateRoute: () -> Unit,
     onOpenNavigation: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (developerSettings.isDebugRandom) {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                 ) {
                     Text(
@@ -288,80 +287,166 @@ private fun ControlPanel(
                     )
                 }
             }
-            Text("Exploration radius", style = MaterialTheme.typography.titleSmall)
-            val radiusIndex = SUPPORTED_RADIUS_METERS.indexOf(uiState.radiusMeters)
-                .coerceAtLeast(0)
-            Slider(
-                value = radiusIndex.toFloat(),
-                onValueChange = { index ->
-                    val selectedIndex = index.roundToInt().coerceIn(SUPPORTED_RADIUS_METERS.indices)
-                    onRadiusChange(SUPPORTED_RADIUS_METERS[selectedIndex])
-                },
-                valueRange = 0f..SUPPORTED_RADIUS_METERS.lastIndex.toFloat(),
-                steps = SUPPORTED_RADIUS_METERS.size - 2,
-            )
+
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                FilterChip(
-                    selected = uiState.routeMode == RouteMode.Walk,
-                    onClick = { onRouteModeChange(RouteMode.Walk) },
-                    label = { Text("Walk") },
-                )
-                FilterChip(
-                    selected = uiState.routeMode == RouteMode.Drive,
-                    onClick = { onRouteModeChange(RouteMode.Drive) },
-                    label = { Text("Drive") },
-                )
-                Spacer(Modifier.size(1.dp).weight(1f))
-                Text(formatRadius(uiState.radiusMeters))
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Map", style = MaterialTheme.typography.titleSmall)
-                FilterChip(
-                    selected = uiState.mapVisualMode == MapVisualMode.Normal,
-                    onClick = { onMapVisualModeChange(MapVisualMode.Normal) },
-                    label = { Text("2D") },
-                )
-                FilterChip(
-                    selected = uiState.mapVisualMode == MapVisualMode.Satellite,
-                    onClick = { onMapVisualModeChange(MapVisualMode.Satellite) },
-                    label = { Text("Satellite") },
-                )
-            }
-            StatusText(uiState.status)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 14.dp),
-                    onClick = onLocate,
-                ) {
-                    Text("Locate")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${uiState.routeMode.label} · ${formatRadius(uiState.radiusMeters)} · ${uiState.mapVisualMode.label}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    StatusText(uiState.status)
+                }
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Outlined.ExpandMore else Icons.Outlined.ExpandLess,
+                        contentDescription = if (expanded) "Collapse controls" else "Expand controls",
+                    )
                 }
                 Button(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     enabled = uiState.canGenerate,
                     onClick = onGenerateRoute,
                 ) {
                     Text("Generate")
                 }
             }
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(vertical = 14.dp),
-                enabled = uiState.targetPoint != null,
-                onClick = onOpenNavigation,
-            ) {
-                Text("Open AMap Navigation")
+
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Exploration radius", style = MaterialTheme.typography.titleSmall)
+                    val radiusIndex = SUPPORTED_RADIUS_METERS.indexOf(uiState.radiusMeters)
+                        .coerceAtLeast(0)
+                    Slider(
+                        value = radiusIndex.toFloat(),
+                        onValueChange = { index ->
+                            val selectedIndex = index.roundToInt().coerceIn(SUPPORTED_RADIUS_METERS.indices)
+                            onRadiusChange(SUPPORTED_RADIUS_METERS[selectedIndex])
+                        },
+                        valueRange = 0f..SUPPORTED_RADIUS_METERS.lastIndex.toFloat(),
+                        steps = SUPPORTED_RADIUS_METERS.size - 2,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FilterChip(
+                            selected = uiState.routeMode == RouteMode.Walk,
+                            onClick = { onRouteModeChange(RouteMode.Walk) },
+                            label = { Text("Walk") },
+                        )
+                        FilterChip(
+                            selected = uiState.routeMode == RouteMode.Drive,
+                            onClick = { onRouteModeChange(RouteMode.Drive) },
+                            label = { Text("Drive") },
+                        )
+                        Spacer(Modifier.size(1.dp).weight(1f))
+                        Text(formatRadius(uiState.radiusMeters))
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Map", style = MaterialTheme.typography.titleSmall)
+                        FilterChip(
+                            selected = uiState.mapVisualMode == MapVisualMode.Normal,
+                            onClick = { onMapVisualModeChange(MapVisualMode.Normal) },
+                            label = { Text("2D") },
+                        )
+                        FilterChip(
+                            selected = uiState.mapVisualMode == MapVisualMode.Satellite,
+                            onClick = { onMapVisualModeChange(MapVisualMode.Satellite) },
+                            label = { Text("Satellite") },
+                        )
+                    }
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp),
+                        enabled = uiState.targetPoint != null,
+                        onClick = onOpenNavigation,
+                    ) {
+                        Text("Open AMap Navigation")
+                    }
+                }
             }
         }
     }
 }
+
+private fun generateRoute(
+    context: Context,
+    scope: kotlinx.coroutines.CoroutineScope,
+    qrngClient: QrngClient,
+    developerSettings: DeveloperSettings,
+    uiState: ExploreUiState,
+    onStateChange: (ExploreUiState) -> Unit,
+) {
+    val current = uiState.currentPoint
+    if (current == null) {
+        onStateChange(uiState.withStatus(ExploreStatus.Error("Waiting for current location.")))
+        return
+    }
+
+    onStateChange(uiState.withStatus(ExploreStatus.Loading))
+    scope.launch {
+        val result = runCatching {
+            val qrngResponse = withContext(Dispatchers.IO) {
+                qrngClient.fetchUInt16(
+                    length = 2,
+                    provider = developerSettings.randomProvider,
+                )
+            }
+            val target = generateTargetPoint(current, uiState.radiusMeters, qrngResponse.values)
+            val routePoints = fetchRoutePoints(context, uiState.routeMode, current, target)
+            target to routePoints
+        }
+
+        result
+            .onSuccess { (target, routePoints) ->
+                onStateChange(uiState.withTargetRoute(target, routePoints))
+            }
+            .onFailure { error ->
+                onStateChange(
+                    uiState.withStatus(
+                        ExploreStatus.Error(error.message ?: "Quantum random source unavailable."),
+                    ),
+                )
+            }
+    }
+}
+
+private fun openGeneratedNavigation(
+    context: Context,
+    uiState: ExploreUiState,
+    onStateChange: (ExploreUiState) -> Unit,
+) {
+    val current = uiState.currentPoint
+    val target = uiState.targetPoint
+    if (current == null || target == null) {
+        onStateChange(uiState.withStatus(ExploreStatus.Error("Generate a route first.")))
+        return
+    }
+    val opened = openAmapNavigation(context, uiState.routeMode, current, target)
+    if (!opened) {
+        onStateChange(uiState.withStatus(ExploreStatus.Error("AMap app is not installed.")))
+    }
+}
+
+private val RouteMode.label: String
+    get() = when (this) {
+        RouteMode.Walk -> "Walk"
+        RouteMode.Drive -> "Drive"
+    }
+
+private val MapVisualMode.label: String
+    get() = when (this) {
+        MapVisualMode.Normal -> "2D"
+        MapVisualMode.Satellite -> "Satellite"
+    }
 
 @Composable
 private fun StatusText(status: ExploreStatus) {
@@ -626,7 +711,7 @@ private fun openAmapNavigation(
 @Composable
 private fun ExploreRoutePreview() {
     QuorviaTheme {
-        ControlPanel(
+        FloatingControlPanel(
             developerSettings = DeveloperSettings(),
             uiState = ExploreUiState(
                 currentPoint = ExplorePoint(39.9087, 116.3975),
@@ -635,7 +720,6 @@ private fun ExploreRoutePreview() {
             onRadiusChange = {},
             onRouteModeChange = {},
             onMapVisualModeChange = {},
-            onLocate = {},
             onGenerateRoute = {},
             onOpenNavigation = {},
         )
