@@ -30,6 +30,7 @@ PURGE="0"
 REMOVE_CADDY="0"
 YES="0"
 LAST_BACKUP=""
+AQN_API_KEY_INPUT=""
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*" >&2
@@ -66,6 +67,7 @@ Options:
   --force-node           Install managed Node.js even if an acceptable node exists.
   --repo-url URL         Git repository to install from. Defaults to Quorvia on GitHub.
   --ref REF              Git branch or tag to install from. Defaults to master.
+  --aqn-api-key KEY      Set AQN_API_KEY non-interactively on first install.
   -y, --yes              Do not prompt for confirmation.
   -h, --help             Show this help.
 EOF
@@ -120,6 +122,11 @@ while [[ $# -gt 0 ]]; do
     --ref)
       [[ $# -ge 2 ]] || die "--ref requires a value"
       REPO_REF="$2"
+      shift 2
+      ;;
+    --aqn-api-key)
+      [[ $# -ge 2 ]] || die "--aqn-api-key requires a value"
+      AQN_API_KEY_INPUT="$2"
       shift 2
       ;;
     -y|--yes)
@@ -348,7 +355,62 @@ CORS_ORIGINS=*
 EOF
   chown root:root "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
-  log "Created ${ENV_FILE}; set AQN_API_KEY before the service can start successfully."
+  log "Created ${ENV_FILE}"
+}
+
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  local escaped
+  escaped="$(printf '%s' "${value}" | sed -e 's/[\/&]/\\&/g')"
+  if grep -q "^${key}=" "${ENV_FILE}"; then
+    sed -i "s/^${key}=.*/${key}=${escaped}/" "${ENV_FILE}"
+  else
+    printf '%s=%s\n' "${key}" "${value}" >>"${ENV_FILE}"
+  fi
+  chown root:root "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
+}
+
+prompt_for_api_key_if_needed() {
+  env_has_api_key && return 0
+
+  if [[ -n "${AQN_API_KEY_INPUT}" ]]; then
+    set_env_value "AQN_API_KEY" "${AQN_API_KEY_INPUT}"
+    log "Saved AQN_API_KEY to ${ENV_FILE}"
+    return 0
+  fi
+
+  if [[ "${YES}" == "1" ]]; then
+    log "AQN_API_KEY is not set. Skipping interactive prompt because -y/--yes was provided."
+    return 1
+  fi
+
+  if [[ ! -r /dev/tty ]]; then
+    log "AQN_API_KEY is not set and no interactive terminal is available."
+    log "Rerun with --aqn-api-key KEY, or edit ${ENV_FILE} manually."
+    return 1
+  fi
+
+  local api_key confirm_key
+  while true; do
+    read -r -s -p "Enter AQN_API_KEY: " api_key </dev/tty
+    printf '\n' >/dev/tty
+    read -r -s -p "Confirm AQN_API_KEY: " confirm_key </dev/tty
+    printf '\n' >/dev/tty
+
+    if [[ -z "${api_key}" ]]; then
+      log "AQN_API_KEY cannot be empty."
+      continue
+    fi
+    if [[ "${api_key}" != "${confirm_key}" ]]; then
+      log "AQN_API_KEY values did not match."
+      continue
+    fi
+    set_env_value "AQN_API_KEY" "${api_key}"
+    log "Saved AQN_API_KEY to ${ENV_FILE}"
+    return 0
+  done
 }
 
 env_has_api_key() {
@@ -559,6 +621,7 @@ install_or_upgrade() {
   local node_bin can_start
   node_bin="$(resolve_node)"
   write_env_template
+  prompt_for_api_key_if_needed || true
   can_start="0"
   if validate_env_file; then
     can_start="1"

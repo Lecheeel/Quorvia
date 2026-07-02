@@ -103,6 +103,8 @@ Debian 13 服务端一键安装或升级：
 curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash
 ```
 
+首次安装会提示输入并保存 `AQN_API_KEY`；后续升级会保留现有配置。
+
 后端部署文档见：
 
 - `server/deploy/README.md`
@@ -214,6 +216,8 @@ One-command install or upgrade on Debian 13:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash
 ```
+
+The first install prompts for `AQN_API_KEY`; later upgrades keep the existing configuration.
 
 Backend deployment docs:
 

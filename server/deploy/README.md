@@ -26,12 +26,19 @@ The installer:
 - installs and enables the `quorvia-qrng` systemd service;
 - optionally configures Caddy when `--domain` is provided.
 
-The first install creates `/etc/quorvia/qrng-proxy.env`. Set `AQN_API_KEY`,
-then start or restart the service:
+The first interactive install asks for `AQN_API_KEY` and saves it to
+`/etc/quorvia/qrng-proxy.env` with `0600` permissions. Upgrades keep the
+existing file. To set the key manually later:
 
 ```bash
 sudo editor /etc/quorvia/qrng-proxy.env
 sudo systemctl restart quorvia-qrng
+```
+
+For non-interactive provisioning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --aqn-api-key "replace-with-real-key"
 ```
 
 Default production environment:
@@ -97,6 +104,7 @@ Useful options:
 ```bash
 --ref master
 --repo-url https://github.com/Lecheeel/Quorvia.git
+--aqn-api-key replace-with-real-key
 --node-version 24.18.0
 --force-node
 --no-caddy
