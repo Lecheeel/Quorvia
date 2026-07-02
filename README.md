@@ -97,6 +97,12 @@ cd android
 
 ### 部署
 
+Debian 13 服务端一键安装或升级：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash
+```
+
 后端部署文档见：
 
 - `server/deploy/README.md`
@@ -203,10 +209,15 @@ The project currently uses compile/target SDK 36. Android lint reports Android 3
 
 ### Deployment
 
+One-command install or upgrade on Debian 13:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash
+```
+
 Backend deployment docs:
 
 - `server/deploy/README.md`
 - `server/deploy/quorvia-qrng.service`
 
 Recommended deployment target: Debian 13 lightweight server, systemd service, and Nginx or Caddy in front for HTTPS.
-

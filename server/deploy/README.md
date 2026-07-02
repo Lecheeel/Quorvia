@@ -1,66 +1,104 @@
-# Debian 13 Deployment
+# Debian Deployment
 
-Target: Alibaba Cloud lightweight server, Debian 13, 1C/1G.
+Target: Debian 13 server.
 
-## Install Node.js 24 LTS
+## One-command install or upgrade
 
-Use NodeSource or your preferred package source, then verify:
-
-```bash
-node -v
-npm -v
-```
-
-## Deploy files
+Install or upgrade the service with:
 
 ```bash
-sudo useradd --system --home /opt/quorvia --shell /usr/sbin/nologin quorvia
-sudo mkdir -p /opt/quorvia/server /etc/quorvia
-sudo chown -R quorvia:quorvia /opt/quorvia
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash
 ```
 
-Copy the `server` directory to `/opt/quorvia/server`, then install/build:
+With a public domain and automatic HTTPS via Caddy:
 
 ```bash
-cd /opt/quorvia/server
-npm ci
-npm run build
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --domain example.com
 ```
 
-Create `/etc/quorvia/qrng-proxy.env`:
+The installer:
+
+- installs required Debian packages;
+- installs Node.js 24 LTS from official Node.js tarballs when no suitable Node.js is already present;
+- deploys the server to `/opt/quorvia/server`;
+- preserves `/etc/quorvia/qrng-proxy.env` on upgrade;
+- builds in `/opt/quorvia/staging/server` before publishing to avoid half-built upgrades;
+- installs and enables the `quorvia-qrng` systemd service;
+- optionally configures Caddy when `--domain` is provided.
+
+The first install creates `/etc/quorvia/qrng-proxy.env`. Set `AQN_API_KEY`,
+then start or restart the service:
+
+```bash
+sudo editor /etc/quorvia/qrng-proxy.env
+sudo systemctl restart quorvia-qrng
+```
+
+Default production environment:
 
 ```bash
 NODE_ENV=production
 HOST=127.0.0.1
 PORT=49030
-AQN_API_KEY=replace-with-real-key
+AQN_API_KEY=
 AQN_API_URL=https://api.quantumnumbers.anu.edu.au
 AQN_TIMEOUT_MS=15000
 CORS_ORIGINS=*
 ```
 
-Lock it down:
+## Status
 
 ```bash
-sudo chown root:root /etc/quorvia/qrng-proxy.env
-sudo chmod 600 /etc/quorvia/qrng-proxy.env
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --status
 ```
 
-Install systemd unit:
+Or, on the server:
 
 ```bash
-sudo cp deploy/quorvia-qrng.service /etc/systemd/system/quorvia-qrng.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now quorvia-qrng
 sudo systemctl status quorvia-qrng
+sudo journalctl -u quorvia-qrng -f
+curl http://127.0.0.1:49030/health
 ```
 
-Health check:
+## Uninstall
+
+Application-level uninstall keeps secrets and backups:
 
 ```bash
-curl http://127.0.0.1:49030/health
-curl "http://127.0.0.1:49030/v1/qrng?type=uint16&length=4"
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --uninstall
 ```
 
-For public Android access, put Nginx/Caddy in front with HTTPS and proxy to
-`127.0.0.1:49030`.
+Full purge removes `/opt/quorvia`, `/etc/quorvia`, and the system user:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --uninstall --purge
+```
+
+If Caddy was configured by the installer and you want to remove its managed
+Caddyfile during uninstall:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lecheeel/Quorvia/master/server/deploy/install-debian.sh | sudo bash -s -- --uninstall --remove-caddy
+```
+
+## Local script usage
+
+From a cloned repository:
+
+```bash
+sudo bash server/deploy/install-debian.sh
+sudo bash server/deploy/install-debian.sh --domain example.com
+sudo bash server/deploy/install-debian.sh --status
+sudo bash server/deploy/install-debian.sh --uninstall
+```
+
+Useful options:
+
+```bash
+--ref master
+--repo-url https://github.com/Lecheeel/Quorvia.git
+--node-version 24.18.0
+--force-node
+--no-caddy
+-y
+```
