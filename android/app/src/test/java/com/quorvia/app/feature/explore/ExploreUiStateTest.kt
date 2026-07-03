@@ -11,6 +11,7 @@ class ExploreUiStateTest {
         val state = ExploreUiState()
 
         assertEquals(3_000, state.radiusMeters)
+        assertEquals(MapVisualMode.Satellite, state.mapVisualMode)
         assertEquals(RouteMode.Drive, state.routeMode)
         assertFalse(state.canGenerate)
     }

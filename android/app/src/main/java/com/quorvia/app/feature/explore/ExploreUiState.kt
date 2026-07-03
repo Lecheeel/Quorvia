@@ -2,7 +2,7 @@ package com.quorvia.app.feature.explore
 
 data class ExploreUiState(
     val radiusMeters: Int = DEFAULT_RADIUS_METERS,
-    val mapVisualMode: MapVisualMode = MapVisualMode.Normal,
+    val mapVisualMode: MapVisualMode = DEFAULT_MAP_VISUAL_MODE,
     val currentPoint: ExplorePoint? = null,
     val targetPoint: ExplorePoint? = null,
     val routePoints: List<ExplorePoint> = emptyList(),
@@ -27,6 +27,7 @@ enum class MapVisualMode {
 
 val SUPPORTED_RADIUS_METERS = listOf(300, 500, 1_000, 2_000, 3_000, 5_000, 10_000)
 const val DEFAULT_RADIUS_METERS = 3_000
+val DEFAULT_MAP_VISUAL_MODE = MapVisualMode.Satellite
 
 data class ExplorePoint(
     val latitude: Double,

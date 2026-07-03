@@ -1,6 +1,7 @@
 package com.quorvia.app.feature.history
 
 import android.content.Context
+import com.quorvia.app.feature.explore.ExplorePoint
 import com.quorvia.app.feature.explore.MapVisualMode
 import com.quorvia.app.feature.explore.RouteMode
 import com.quorvia.app.settings.RandomProvider
@@ -12,6 +13,9 @@ data class RouteHistoryRecord(
     val createdAtMillis: Long,
     val randomProvider: RandomProvider,
     val randomSource: String,
+    val randomType: String,
+    val randomLength: Int,
+    val randomValues: List<Int>,
     val radiusMeters: Int,
     val routeMode: RouteMode,
     val mapVisualMode: MapVisualMode,
@@ -20,6 +24,7 @@ data class RouteHistoryRecord(
     val targetLatitude: Double,
     val targetLongitude: Double,
     val routePointCount: Int,
+    val routePoints: List<ExplorePoint>,
 )
 
 class RouteHistoryStore(context: Context) {
@@ -64,6 +69,9 @@ private fun RouteHistoryRecord.toJson(): JSONObject =
         .put("createdAtMillis", createdAtMillis)
         .put("randomProvider", randomProvider.name)
         .put("randomSource", randomSource)
+        .put("randomType", randomType)
+        .put("randomLength", randomLength)
+        .put("randomValues", JSONArray().apply { randomValues.forEach { put(it) } })
         .put("radiusMeters", radiusMeters)
         .put("routeMode", routeMode.name)
         .put("mapVisualMode", mapVisualMode.name)
@@ -72,6 +80,7 @@ private fun RouteHistoryRecord.toJson(): JSONObject =
         .put("targetLatitude", targetLatitude)
         .put("targetLongitude", targetLongitude)
         .put("routePointCount", routePointCount)
+        .put("routePoints", JSONArray().apply { routePoints.forEach { put(it.toJson()) } })
 
 private fun JSONObject.toRouteHistoryRecord(): RouteHistoryRecord =
     RouteHistoryRecord(
@@ -82,6 +91,9 @@ private fun JSONObject.toRouteHistoryRecord(): RouteHistoryRecord =
             default = RandomProvider.Quantum,
         ),
         randomSource = optString("randomSource", "ANU Quantum Numbers"),
+        randomType = optString("randomType", "uint16"),
+        randomLength = optInt("randomLength", 2),
+        randomValues = optIntList("randomValues"),
         radiusMeters = getInt("radiusMeters"),
         routeMode = enumValueOrDefault(
             value = optString("routeMode"),
@@ -96,7 +108,29 @@ private fun JSONObject.toRouteHistoryRecord(): RouteHistoryRecord =
         targetLatitude = getDouble("targetLatitude"),
         targetLongitude = getDouble("targetLongitude"),
         routePointCount = getInt("routePointCount"),
+        routePoints = optPointList("routePoints"),
     )
+
+private fun ExplorePoint.toJson(): JSONObject =
+    JSONObject()
+        .put("latitude", latitude)
+        .put("longitude", longitude)
+
+private fun JSONObject.toExplorePoint(): ExplorePoint =
+    ExplorePoint(
+        latitude = getDouble("latitude"),
+        longitude = getDouble("longitude"),
+    )
+
+private fun JSONObject.optIntList(name: String): List<Int> {
+    val array = optJSONArray(name) ?: return emptyList()
+    return List(array.length()) { index -> array.getInt(index) }
+}
+
+private fun JSONObject.optPointList(name: String): List<ExplorePoint> {
+    val array = optJSONArray(name) ?: return emptyList()
+    return List(array.length()) { index -> array.getJSONObject(index).toExplorePoint() }
+}
 
 private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
     enumValues<T>().firstOrNull { it.name == value } ?: default

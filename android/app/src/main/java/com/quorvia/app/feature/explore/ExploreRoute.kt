@@ -92,16 +92,33 @@ import kotlin.math.roundToInt
 @Composable
 fun ExploreRoute(
     developerSettings: DeveloperSettings,
+    preferences: ExplorePreferences,
+    onPreferencesChange: (ExplorePreferences) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
     onRouteGenerated: (RouteHistoryRecord) -> Unit,
 ) {
-    var uiState by remember { mutableStateOf(ExploreUiState()) }
+    var uiState by remember {
+        mutableStateOf(
+            ExploreUiState(
+                radiusMeters = preferences.radiusMeters,
+                mapVisualMode = preferences.mapVisualMode,
+            ),
+        )
+    }
 
     ExploreScreen(
         developerSettings = developerSettings,
         uiState = uiState,
-        onStateChange = { uiState = it },
+        onStateChange = { updated ->
+            uiState = updated
+            onPreferencesChange(
+                ExplorePreferences(
+                    radiusMeters = updated.radiusMeters,
+                    mapVisualMode = updated.mapVisualMode,
+                ),
+            )
+        },
         onOpenSettings = onOpenSettings,
         onOpenHistory = onOpenHistory,
         onRouteGenerated = onRouteGenerated,
@@ -420,6 +437,9 @@ private fun generateRoute(
                         createdAtMillis = System.currentTimeMillis(),
                         randomProvider = developerSettings.randomProvider,
                         randomSource = qrngResponse.source,
+                        randomType = "uint16",
+                        randomLength = 2,
+                        randomValues = qrngResponse.values,
                         radiusMeters = uiState.radiusMeters,
                         routeMode = uiState.routeMode,
                         mapVisualMode = uiState.mapVisualMode,
@@ -428,6 +448,7 @@ private fun generateRoute(
                         targetLatitude = target.latitude,
                         targetLongitude = target.longitude,
                         routePointCount = routePoints.size,
+                        routePoints = routePoints,
                     ),
                 )
                 onStateChange(uiState.withTargetRoute(target, routePoints))
