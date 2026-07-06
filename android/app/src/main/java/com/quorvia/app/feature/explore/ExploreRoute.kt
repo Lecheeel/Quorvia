@@ -563,6 +563,7 @@ private fun startSingleLocation(
 private fun MapView.enableCurrentLocationCursor() {
     map.myLocationStyle = MyLocationStyle()
         .myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE_NO_CENTER)
+        .myLocationIcon(MapMarkerHelper.getUserLocationMarker(context))
         .showMyLocation(true)
     map.isMyLocationEnabled = true
 }
@@ -597,7 +598,8 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
                 .position(target.toLatLng())
                 .title("Quantum target")
                 .snippet("Generated from ANU/AQN entropy")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)),
+                .icon(MapMarkerHelper.getQuantumTargetMarker(context))
+                .anchor(0.5f, 0.5f),
         )
     }
 

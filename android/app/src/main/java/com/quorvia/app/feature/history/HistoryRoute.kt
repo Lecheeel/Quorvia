@@ -373,13 +373,15 @@ private fun MapView.renderHistoryRoute(record: RouteHistoryRecord) {
         MarkerOptions()
             .position(origin)
             .title("Origin")
-            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)),
+            .icon(com.quorvia.app.feature.explore.MapMarkerHelper.getOriginMarker(context))
+            .anchor(0.5f, 0.5f),
     )
     renderState.targetMarker = map.addMarker(
         MarkerOptions()
             .position(target)
             .title("Target")
-            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)),
+            .icon(com.quorvia.app.feature.explore.MapMarkerHelper.getQuantumTargetMarker(context))
+            .anchor(0.5f, 0.5f),
     )
     if (points.size >= 2) {
         renderState.routePolyline = map.addPolyline(
