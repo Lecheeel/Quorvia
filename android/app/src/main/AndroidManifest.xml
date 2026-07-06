@@ -22,6 +22,8 @@
             android:name="com.amap.api.v2.apikey"
             android:value="${AMAP_ANDROID_KEY}" />
 
+        <service android:name="com.amap.api.location.APSService" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
