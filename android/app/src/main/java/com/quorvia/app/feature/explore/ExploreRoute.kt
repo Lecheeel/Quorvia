@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
@@ -87,6 +87,10 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.math.roundToInt
 
 @Composable
@@ -202,6 +206,20 @@ private fun ExploreScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FilledTonalIconButton(
+                onClick = {
+                    onStateChange(
+                        uiState.withMapVisualMode(
+                            when (uiState.mapVisualMode) {
+                                MapVisualMode.Normal -> MapVisualMode.Satellite
+                                MapVisualMode.Satellite -> MapVisualMode.Normal
+                            },
+                        ),
+                    )
+                },
+            ) {
+                Icon(Icons.Outlined.Layers, contentDescription = "Switch map layer")
+            }
+            FilledTonalIconButton(
                 onClick = { startSingleLocation(context, onStateChange, uiState, mapView) },
             ) {
                 Icon(Icons.Outlined.MyLocation, contentDescription = "Locate")
@@ -215,7 +233,6 @@ private fun ExploreScreen(
             developerSettings = developerSettings,
             uiState = uiState,
             onRadiusChange = { onStateChange(uiState.withRadius(it)) },
-            onMapVisualModeChange = { onStateChange(uiState.withMapVisualMode(it)) },
             onGenerateRoute = {
                 generateRoute(
                     context = context,
@@ -288,7 +305,6 @@ private fun FloatingControlPanel(
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     onRadiusChange: (Int) -> Unit,
-    onMapVisualModeChange: (MapVisualMode) -> Unit,
     onGenerateRoute: () -> Unit,
     onOpenNavigation: () -> Unit,
     modifier: Modifier = Modifier,
@@ -369,22 +385,6 @@ private fun FloatingControlPanel(
                         Text(uiState.routeMode.label, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.size(1.dp).weight(1f))
                         Text(formatRadius(uiState.radiusMeters))
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Map", style = MaterialTheme.typography.titleSmall)
-                        FilterChip(
-                            selected = uiState.mapVisualMode == MapVisualMode.Normal,
-                            onClick = { onMapVisualModeChange(MapVisualMode.Normal) },
-                            label = { Text("2D") },
-                        )
-                        FilterChip(
-                            selected = uiState.mapVisualMode == MapVisualMode.Satellite,
-                            onClick = { onMapVisualModeChange(MapVisualMode.Satellite) },
-                            label = { Text("Satellite") },
-                        )
                     }
                     Button(
                         modifier = Modifier.fillMaxWidth(),
@@ -570,36 +570,49 @@ private fun MapView.enableCurrentLocationCursor() {
 
 private class MapRenderState {
     var radiusCircle: Circle? = null
+    var targetRangeCircle: Circle? = null
     var targetMarker: Marker? = null
     var routePolyline: Polyline? = null
+    var targetConnectorPolylines: List<Polyline> = emptyList()
     var lastViewportKey: String? = null
 }
 
 private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: ExploreUiState) {
     map.mapType = state.mapVisualMode.toAmapMapType()
     renderState.radiusCircle?.remove()
+    renderState.targetRangeCircle?.remove()
     renderState.targetMarker?.remove()
     renderState.routePolyline?.remove()
+    renderState.targetConnectorPolylines.forEach { it.remove() }
+    renderState.targetConnectorPolylines = emptyList()
 
     state.currentPoint?.let { origin ->
         renderState.radiusCircle = map.addCircle(
             CircleOptions()
                 .center(origin.toLatLng())
                 .radius(state.radiusMeters.toDouble())
-                .strokeColor(0x8878909C.toInt()) // 蓝灰色描边
-                .fillColor(0x1578909C)           // 浅蓝灰色半透明填充
-                .strokeWidth(4f),
+                .strokeColor(0x661976D2)
+                .fillColor(0x00000000)
+                .strokeWidth(20f),
         )
     }
 
     state.targetPoint?.let { target ->
+        renderState.targetRangeCircle = map.addCircle(
+            CircleOptions()
+                .center(target.toLatLng())
+                .radius(randomTargetRangeMeters(target, state.radiusMeters))
+                .strokeColor(0x66D32F2F)
+                .fillColor(0x00000000)
+                .strokeWidth(16f),
+        )
         renderState.targetMarker = map.addMarker(
             MarkerOptions()
                 .position(target.toLatLng())
                 .title("Quantum target")
                 .snippet("Generated from ANU/AQN entropy")
                 .icon(MapMarkerHelper.getQuantumTargetMarker(context))
-                .anchor(0.5f, 0.5f),
+                .anchor(0.5f, 1.0f),
         )
     }
 
@@ -607,15 +620,73 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
         renderState.routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(state.routePoints.map { it.toLatLng() })
-                .color(0xFF00C853.toInt()) // 导航亮绿色
+                .color(0xFF1E88E5.toInt())
                 .width(8f),
         )
+
+        state.targetPoint?.let { target ->
+            val routeEnd = state.routePoints.last()
+            if (routeEnd.distanceToMeters(target) > TARGET_CONNECTOR_MIN_DISTANCE_METERS) {
+                renderState.targetConnectorPolylines = routeEnd
+                    .dashedSegmentsTo(target)
+                    .map { (start, end) ->
+                        map.addPolyline(
+                            PolylineOptions()
+                                .add(start.toLatLng(), end.toLatLng())
+                                .color(0xCC1E88E5.toInt())
+                                .width(7f),
+                        )
+                    }
+            }
+        }
     }
 
     fitViewportIfNeeded(renderState, state)
 }
 
 private fun ExplorePoint.toLatLng(): LatLng = LatLng(latitude, longitude)
+
+private fun ExplorePoint.distanceToMeters(other: ExplorePoint): Double {
+    val earthRadiusMeters = 6_371_000.0
+    val lat1 = Math.toRadians(latitude)
+    val lat2 = Math.toRadians(other.latitude)
+    val deltaLat = Math.toRadians(other.latitude - latitude)
+    val deltaLng = Math.toRadians(other.longitude - longitude)
+    val a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+        cos(lat1) * cos(lat2) * sin(deltaLng / 2) * sin(deltaLng / 2)
+    return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
+}
+
+private fun ExplorePoint.dashedSegmentsTo(other: ExplorePoint): List<Pair<ExplorePoint, ExplorePoint>> {
+    val distanceMeters = distanceToMeters(other)
+    if (distanceMeters <= TARGET_CONNECTOR_MIN_DISTANCE_METERS) {
+        return emptyList()
+    }
+
+    val segments = mutableListOf<Pair<ExplorePoint, ExplorePoint>>()
+    var startMeters = 0.0
+    while (startMeters < distanceMeters) {
+        val endMeters = (startMeters + TARGET_CONNECTOR_DASH_METERS).coerceAtMost(distanceMeters)
+        segments += interpolateTo(other, startMeters / distanceMeters) to interpolateTo(other, endMeters / distanceMeters)
+        startMeters += TARGET_CONNECTOR_DASH_METERS + TARGET_CONNECTOR_GAP_METERS
+    }
+    return segments
+}
+
+private fun ExplorePoint.interpolateTo(other: ExplorePoint, fraction: Double): ExplorePoint =
+    ExplorePoint(
+        latitude = latitude + (other.latitude - latitude) * fraction,
+        longitude = longitude + (other.longitude - longitude) * fraction,
+    )
+
+private fun randomTargetRangeMeters(target: ExplorePoint, radiusMeters: Int): Double {
+    val seed = target.latitude.toBits() xor target.longitude.toBits()
+    val fraction = ((seed ushr 1) % 1_000L).toDouble() / 999.0
+    val radiusFraction = 0.02 + fraction * 0.03
+    return (radiusMeters * radiusFraction)
+        .coerceAtLeast(10.0)
+        .coerceAtMost(radiusMeters * 0.05)
+}
 
 private fun MapVisualMode.toAmapMapType(): Int =
     when (this) {
@@ -732,6 +803,9 @@ private fun com.amap.api.services.route.RidePath.toRoutePoints(): List<ExplorePo
     steps.flatMap { step -> step.polyline.map { it.toExplorePoint() } }
 
 private const val AMAP_SUCCESS_CODE = 1000
+private const val TARGET_CONNECTOR_MIN_DISTANCE_METERS = 3.0
+private const val TARGET_CONNECTOR_DASH_METERS = 10.0
+private const val TARGET_CONNECTOR_GAP_METERS = 16.0
 
 private fun openAmapNavigation(
     context: Context,
@@ -782,7 +856,6 @@ private fun ExploreRoutePreview() {
                 status = ExploreStatus.Message("Location ready."),
             ),
             onRadiusChange = {},
-            onMapVisualModeChange = {},
             onGenerateRoute = {},
             onOpenNavigation = {},
         )
