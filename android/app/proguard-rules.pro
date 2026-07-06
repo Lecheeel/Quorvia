@@ -5,6 +5,7 @@
 # =====================================================================
 
 -dontwarn com.amap.api.**
+-dontwarn com.amap.location.**
 -dontwarn com.autonavi.**
 -dontwarn com.loc.**
 -dontwarn com.aps.**
@@ -14,10 +15,10 @@
 -keep class com.amap.api.maps.** { *; }
 -keep class com.amap.api.services.** { *; }
 -keep class com.amap.api.location.** { *; }
+-keep class com.amap.location.** { *; }
 -keep class com.amap.api.fence.** { *; }
 -keep class com.amap.api.trace.** { *; }
 -keep class com.autonavi.** { *; }
 -keep class com.loc.** { *; }
 -keep class com.aps.** { *; }
 -keep class com.autonavi.aps.amapapi.model.** { *; }
-
