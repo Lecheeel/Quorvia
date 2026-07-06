@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.MotionEvent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -314,7 +315,19 @@ private fun DetailRow(label: String, value: String) {
 private fun rememberHistoryMapView(): MapView {
     val context = LocalContext.current
     val mapView = remember {
-        MapView(context).apply {
+        object : MapView(context) {
+            override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+                when (ev.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+                return super.dispatchTouchEvent(ev)
+            }
+        }.apply {
             onCreate(Bundle())
             map.uiSettings.isMyLocationButtonEnabled = false
             map.uiSettings.isZoomControlsEnabled = false

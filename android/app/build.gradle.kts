@@ -83,6 +83,15 @@ android {
         )
     }
 
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = false
+        }
+    }
+
     signingConfigs {
         create("release") {
             val keystorePath = releaseKeystorePath
@@ -106,7 +115,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasReleaseSigning()) {
                 signingConfig = signingConfigs.getByName("release")
             }
