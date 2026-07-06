@@ -586,8 +586,8 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
             CircleOptions()
                 .center(origin.toLatLng())
                 .radius(state.radiusMeters.toDouble())
-                .strokeColor(0xFF2367F4.toInt())
-                .fillColor(0x222367F4)
+                .strokeColor(0x8878909C.toInt()) // 蓝灰色描边
+                .fillColor(0x1578909C)           // 浅蓝灰色半透明填充
                 .strokeWidth(4f),
         )
     }
@@ -607,7 +607,7 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
         renderState.routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(state.routePoints.map { it.toLatLng() })
-                .color(0xFF2367F4.toInt())
+                .color(0xFF00C853.toInt()) // 导航亮绿色
                 .width(8f),
         )
     }

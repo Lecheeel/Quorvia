@@ -387,7 +387,7 @@ private fun MapView.renderHistoryRoute(record: RouteHistoryRecord) {
         renderState.routePolyline = map.addPolyline(
             PolylineOptions()
                 .addAll(points)
-                .color(0xFF2367F4.toInt())
+                .color(0xFF00C853.toInt()) // 与探索界面一致的亮绿色导航路线
                 .width(8f),
         )
     }

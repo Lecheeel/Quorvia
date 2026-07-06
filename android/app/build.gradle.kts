@@ -71,8 +71,8 @@ android {
         applicationId = "com.quorvia.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.1.11"
+        versionCode = 13
+        versionName = "0.1.12"
 
         manifestPlaceholders["AMAP_ANDROID_KEY"] =
             secretProperty("AMAP_ANDROID_KEY", "AMAP_ANDROID_RELEASE_KEY", "AMAP_ANDROID_DEBUG_KEY").orEmpty()
