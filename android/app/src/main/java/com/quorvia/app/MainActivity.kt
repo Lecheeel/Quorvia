@@ -2,6 +2,7 @@ package com.quorvia.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
@@ -33,6 +34,15 @@ class MainActivity : ComponentActivity() {
             var screen by remember { mutableStateOf(AppScreen.Explore) }
 
             QuorviaTheme {
+                BackHandler(enabled = screen != AppScreen.Explore) {
+                    if (screen == AppScreen.History && selectedHistoryRecord != null) {
+                        selectedHistoryRecord = null
+                    } else {
+                        selectedHistoryRecord = null
+                        screen = AppScreen.Explore
+                    }
+                }
+
                 when (screen) {
                     AppScreen.Explore -> ExploreRoute(
                         developerSettings = settings,

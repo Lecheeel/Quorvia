@@ -71,5 +71,12 @@ fun ExploreUiState.withTargetRoute(point: ExplorePoint, routePoints: List<Explor
         status = ExploreStatus.Message("Route generated."),
     )
 
+fun ExploreUiState.withoutTargetRoute(): ExploreUiState =
+    copy(
+        targetPoint = null,
+        routePoints = emptyList(),
+        status = ExploreStatus.Message("Ready to generate a new target."),
+    )
+
 fun ExploreUiState.withStatus(status: ExploreStatus): ExploreUiState =
     copy(status = status)

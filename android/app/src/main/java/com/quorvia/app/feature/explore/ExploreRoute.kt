@@ -28,17 +28,21 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddLocationAlt
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -247,6 +251,9 @@ private fun ExploreScreen(
             onOpenNavigation = {
                 openGeneratedNavigation(context, uiState, onStateChange)
             },
+            onCancelTarget = {
+                onStateChange(uiState.withoutTargetRoute())
+            },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -307,6 +314,7 @@ private fun FloatingControlPanel(
     onRadiusChange: (Int) -> Unit,
     onGenerateRoute: () -> Unit,
     onOpenNavigation: () -> Unit,
+    onCancelTarget: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -342,7 +350,7 @@ private fun FloatingControlPanel(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "${uiState.routeMode.label} · ${formatRadius(uiState.radiusMeters)} · ${uiState.mapVisualMode.label}",
+                        text = "${uiState.routeMode.label} · ${formatRadius(uiState.radiusMeters)}",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -354,12 +362,48 @@ private fun FloatingControlPanel(
                         contentDescription = if (expanded) "Collapse controls" else "Expand controls",
                     )
                 }
-                Button(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    enabled = uiState.canGenerate,
-                    onClick = onGenerateRoute,
-                ) {
-                    Text("Generate")
+                if (uiState.targetPoint == null) {
+                    Button(
+                        enabled = uiState.canGenerate,
+                        onClick = onGenerateRoute,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Generate")
+                            Icon(Icons.Outlined.AddLocationAlt, contentDescription = null)
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onOpenNavigation,
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = 0xFF1E88E5.toInt().toColor(),
+                                contentColor = 0xFFFFFFFF.toInt().toColor(),
+                            ),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("Navigate")
+                                Icon(Icons.Outlined.Navigation, contentDescription = null)
+                            }
+                        }
+                        FilledTonalIconButton(
+                            onClick = onCancelTarget,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                        ) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Cancel target")
+                        }
+                    }
                 }
             }
 
@@ -385,14 +429,6 @@ private fun FloatingControlPanel(
                         Text(uiState.routeMode.label, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.size(1.dp).weight(1f))
                         Text(formatRadius(uiState.radiusMeters))
-                    }
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 14.dp),
-                        enabled = uiState.targetPoint != null,
-                        onClick = onOpenNavigation,
-                    ) {
-                        Text("Open AMap Navigation")
                     }
                 }
             }
@@ -511,6 +547,9 @@ private fun formatRadius(radiusMeters: Int): String =
         "${radiusMeters / 1_000} km"
     }
 
+private fun Int.toColor(): androidx.compose.ui.graphics.Color =
+    androidx.compose.ui.graphics.Color(this)
+
 @Composable
 private fun rememberMapViewWithLifecycle(): MapView {
     val context = LocalContext.current
@@ -591,7 +630,7 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
             CircleOptions()
                 .center(origin.toLatLng())
                 .radius(state.radiusMeters.toDouble())
-                .strokeColor(0x661976D2)
+                .strokeColor(0xFF2F4B66.toInt())
                 .fillColor(0x00000000)
                 .strokeWidth(20f),
         )
@@ -602,9 +641,9 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
             CircleOptions()
                 .center(target.toLatLng())
                 .radius(randomTargetRangeMeters(target, state.radiusMeters))
-                .strokeColor(0x66D32F2F)
+                .strokeColor(0xFFD32F2F.toInt())
                 .fillColor(0x00000000)
-                .strokeWidth(16f),
+                .strokeWidth(8f),
         )
         renderState.targetMarker = map.addMarker(
             MarkerOptions()
@@ -858,6 +897,7 @@ private fun ExploreRoutePreview() {
             onRadiusChange = {},
             onGenerateRoute = {},
             onOpenNavigation = {},
+            onCancelTarget = {},
         )
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import com.amap.api.maps.model.BitmapDescriptor
 import com.amap.api.maps.model.BitmapDescriptorFactory
 
@@ -30,20 +31,34 @@ object MapMarkerHelper {
         }
 
         val centerX = sizePx / 2f
-        val centerY = sizePx / 2f
+        val centerY = sizePx / 2f + dpToPx(context, 2.5f)
+        val blue = 0xFF2367F4.toInt()
 
-        // 1. 绘制外部半透明渐变蓝圈 (半径 14dp)
-        paint.color = 0x332367F4.toInt() // 20% alpha
+        val directionPath = Path().apply {
+            moveTo(centerX, dpToPx(context, 3.5f))
+            lineTo(centerX + dpToPx(context, 5.8f), centerY - dpToPx(context, 4.2f))
+            lineTo(centerX + dpToPx(context, 2.4f), centerY - dpToPx(context, 2.6f))
+            lineTo(centerX - dpToPx(context, 2.4f), centerY - dpToPx(context, 2.6f))
+            lineTo(centerX - dpToPx(context, 5.8f), centerY - dpToPx(context, 4.2f))
+            close()
+        }
+
         paint.style = Paint.Style.FILL
-        canvas.drawCircle(centerX, centerY, dpToPx(context, 14f), paint)
-
-        // 2. 绘制白色描边底圈 (半径 7dp)
         paint.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(centerX, centerY, dpToPx(context, 7f), paint)
+        canvas.drawPath(directionPath, paint)
 
-        // 3. 绘制核心亮蓝圆点 (半径 5.5dp)
-        paint.color = 0xFF2367F4.toInt()
-        canvas.drawCircle(centerX, centerY, dpToPx(context, 5.5f), paint)
+        paint.color = blue
+        canvas.drawPath(directionPath, paint)
+
+        paint.color = 0x332367F4.toInt()
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(centerX, centerY, dpToPx(context, 12f), paint)
+
+        paint.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(centerX, centerY, dpToPx(context, 6f), paint)
+
+        paint.color = blue
+        canvas.drawCircle(centerX, centerY, dpToPx(context, 4.8f), paint)
 
         val descriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
         cachedUserLocation = descriptor
