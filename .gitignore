@@ -27,3 +27,5 @@ server/.env.*
 server/npm-debug.log*
 server/pnpm-debug.log*
 server/yarn-error.log*
+
+AI_CONTEXT.md
