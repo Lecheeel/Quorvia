@@ -5,6 +5,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -71,6 +73,8 @@ import com.amap.api.maps.MapView
 import com.amap.api.maps.model.BitmapDescriptorFactory
 import com.amap.api.maps.model.Circle
 import com.amap.api.maps.model.CircleOptions
+import com.amap.api.maps.model.GroundOverlay
+import com.amap.api.maps.model.GroundOverlayOptions
 import com.amap.api.maps.model.LatLng
 import com.amap.api.maps.model.LatLngBounds
 import com.amap.api.maps.model.Marker
@@ -88,6 +92,7 @@ import com.amap.api.services.route.WalkPath
 import com.amap.api.services.route.WalkRouteResult
 import com.quorvia.app.feature.history.RouteHistoryRecord
 import com.quorvia.app.settings.DeveloperSettings
+import com.quorvia.app.settings.HeatmapDeveloperSettings
 import com.quorvia.app.ui.theme.QuorviaTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -97,6 +102,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.roundToInt
@@ -198,6 +205,7 @@ private fun ExploreScreen(
         AMapPanel(
             mapView = mapView,
             renderState = mapRenderState,
+            developerSettings = developerSettings,
             uiState = uiState,
             modifier = Modifier.fillMaxSize(),
         )
@@ -286,6 +294,7 @@ private fun ExploreScreen(
 private fun AMapPanel(
     mapView: MapView,
     renderState: MapRenderState,
+    developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
     modifier: Modifier = Modifier,
 ) {
@@ -293,7 +302,7 @@ private fun AMapPanel(
         modifier = modifier,
         factory = { mapView },
         update = {
-            it.renderExploreOverlays(renderState, uiState)
+            it.renderExploreOverlays(renderState, uiState, developerSettings.heatmap)
         },
     )
 }
@@ -718,24 +727,28 @@ private class MapRenderState {
     var targetMarker: Marker? = null
     var densityMarker: Marker? = null
     var routePolyline: Polyline? = null
+    var heatGroundOverlay: GroundOverlay? = null
     var samplePointCircles: List<Circle> = emptyList()
-    var heatCellCircles: List<Circle> = emptyList()
     var targetConnectorPolylines: List<Polyline> = emptyList()
     var lastViewportKey: String? = null
 }
 
-private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: ExploreUiState) {
+private fun MapView.renderExploreOverlays(
+    renderState: MapRenderState,
+    state: ExploreUiState,
+    heatmapSettings: HeatmapDeveloperSettings,
+) {
     map.mapType = state.mapVisualMode.toAmapMapType()
     renderState.radiusCircle?.remove()
     renderState.targetRangeCircle?.remove()
     renderState.targetMarker?.remove()
     renderState.densityMarker?.remove()
     renderState.routePolyline?.remove()
+    renderState.heatGroundOverlay?.remove()
     renderState.samplePointCircles.forEach { it.remove() }
-    renderState.heatCellCircles.forEach { it.remove() }
     renderState.targetConnectorPolylines.forEach { it.remove() }
+    renderState.heatGroundOverlay = null
     renderState.samplePointCircles = emptyList()
-    renderState.heatCellCircles = emptyList()
     renderState.targetConnectorPolylines = emptyList()
 
     state.currentPoint?.let { origin ->
@@ -750,24 +763,13 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
     }
 
     state.targetGeneration?.let { generation ->
-        renderState.heatCellCircles = generation.heatGrid.cells
-            .filter { it.value > 0.08 }
-            .map { cell ->
-                map.addCircle(
-                    CircleOptions()
-                        .center(cell.point.toLatLng())
-                        .radius(heatCellRadiusMeters(generation.heatGrid))
-                        .strokeWidth(0f)
-                        .fillColor(heatColor(cell.value)),
-                )
-            }
-        renderState.samplePointCircles = generation.samplePoints.map { point ->
-            map.addCircle(
-                CircleOptions()
-                    .center(point.toLatLng())
-                    .radius(samplePointRadiusMeters(state.radiusMeters))
-                    .strokeWidth(0f)
-                    .fillColor(0x552196F3.toInt()),
+        buildHeatmapBitmap(generation, heatmapSettings)?.let { bitmap ->
+            renderState.heatGroundOverlay = map.addGroundOverlay(
+                GroundOverlayOptions()
+                    .image(BitmapDescriptorFactory.fromBitmap(bitmap))
+                    .positionFromBounds(generation.heatGrid.toLatLngBounds())
+                    .transparency(heatmapSettings.overlayTransparency.coerceIn(0f, 1f))
+                    .zIndex(HEATMAP_Z_INDEX),
             )
         }
         renderState.densityMarker = map.addMarker(
@@ -907,19 +909,133 @@ private fun MapView.fitViewportIfNeeded(renderState: MapRenderState, state: Expl
     map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
 }
 
-private fun heatCellRadiusMeters(heatGrid: HeatGrid): Double {
-    val latMeters = (heatGrid.maxLatitude - heatGrid.minLatitude) * 111_320.0 / heatGrid.size
-    return (latMeters * 0.55).coerceAtLeast(20.0)
+private fun buildHeatmapBitmap(
+    generation: TargetGenerationResult,
+    settings: HeatmapDeveloperSettings,
+): Bitmap? {
+    val grid = generation.heatGrid
+    if (grid.cells.isEmpty() || grid.size <= 1) {
+        return null
+    }
+
+    val gridValues = DoubleArray(grid.size * grid.size)
+    grid.cells.take(gridValues.size).forEachIndexed { index, cell ->
+        gridValues[index] = cell.value.coerceIn(0.0, 1.0)
+    }
+
+    val bitmap = Bitmap.createBitmap(HEATMAP_BITMAP_SIZE, HEATMAP_BITMAP_SIZE, Bitmap.Config.ARGB_8888)
+    val pixels = IntArray(HEATMAP_BITMAP_SIZE * HEATMAP_BITMAP_SIZE)
+    for (y in 0 until HEATMAP_BITMAP_SIZE) {
+        val normalizedY = y.toDouble() / (HEATMAP_BITMAP_SIZE - 1).coerceAtLeast(1)
+        val gridY = (1.0 - normalizedY) * (grid.size - 1)
+        val centeredY = normalizedY * 2.0 - 1.0
+        for (x in 0 until HEATMAP_BITMAP_SIZE) {
+            val normalizedX = x.toDouble() / (HEATMAP_BITMAP_SIZE - 1).coerceAtLeast(1)
+            val centeredX = normalizedX * 2.0 - 1.0
+            val radialDistance = sqrt(centeredX * centeredX + centeredY * centeredY)
+            if (radialDistance > 1.0) {
+                continue
+            }
+
+            val gridX = normalizedX * (grid.size - 1)
+            val value = sampleGridValue(gridValues, grid.size, gridX, gridY)
+            val intensity = heatmapDisplayIntensity(value, generation, radialDistance, settings)
+            pixels[y * HEATMAP_BITMAP_SIZE + x] = heatmapColor(intensity, generation, settings)
+        }
+    }
+    bitmap.setPixels(pixels, 0, HEATMAP_BITMAP_SIZE, 0, 0, HEATMAP_BITMAP_SIZE, HEATMAP_BITMAP_SIZE)
+    return bitmap
 }
 
-private fun samplePointRadiusMeters(radiusMeters: Int): Double =
-    (radiusMeters * 0.004).coerceIn(4.0, 24.0)
+private fun HeatGrid.toLatLngBounds(): LatLngBounds =
+    LatLngBounds(
+        LatLng(minLatitude, minLongitude),
+        LatLng(maxLatitude, maxLongitude),
+    )
 
-private fun heatColor(value: Double): Int {
-    val alpha = (35 + value.coerceIn(0.0, 1.0) * 125).roundToInt().coerceIn(0, 255)
-    val red = 255
-    val green = (210 - value.coerceIn(0.0, 1.0) * 130).roundToInt().coerceIn(0, 255)
-    return (alpha shl 24) or (red shl 16) or (green shl 8) or 0x20
+private fun sampleGridValue(values: DoubleArray, size: Int, x: Double, y: Double): Double {
+    val x0 = floor(x).toInt().coerceIn(0, size - 1)
+    val y0 = floor(y).toInt().coerceIn(0, size - 1)
+    val x1 = (x0 + 1).coerceAtMost(size - 1)
+    val y1 = (y0 + 1).coerceAtMost(size - 1)
+    val tx = (x - x0).coerceIn(0.0, 1.0)
+    val ty = (y - y0).coerceIn(0.0, 1.0)
+    val top = lerp(values[y0 * size + x0], values[y0 * size + x1], tx)
+    val bottom = lerp(values[y1 * size + x0], values[y1 * size + x1], tx)
+    return lerp(top, bottom, ty)
+}
+
+private fun heatmapDisplayIntensity(
+    value: Double,
+    generation: TargetGenerationResult,
+    radialDistance: Double,
+    settings: HeatmapDeveloperSettings,
+): Double {
+    val normalized = value.coerceIn(0.0, 1.0)
+    return if (generation.targetType == ExplorationTargetType.Void || generation.target.role == "void") {
+        val voidValue = 1.0 - normalized
+        val edgeFade = 1.0 - smoothstep(settings.voidEdgeFadeStart.toDouble(), 1.0, radialDistance)
+        smoothstep(HEATMAP_VOID_CONTRAST_LOW, HEATMAP_VOID_CONTRAST_HIGH, voidValue)
+            .pow(settings.voidGamma.toDouble()) * edgeFade
+    } else {
+        normalized.pow(settings.hotGamma.toDouble())
+    }
+}
+
+private fun heatmapColor(
+    intensity: Double,
+    generation: TargetGenerationResult,
+    settings: HeatmapDeveloperSettings,
+): Int {
+    val normalized = intensity.coerceIn(0.0, 1.0)
+    val isVoid = generation.targetType == ExplorationTargetType.Void || generation.target.role == "void"
+    val alphaCutoff = if (isVoid) HEATMAP_VOID_ALPHA_CUTOFF else settings.hotAlphaCutoff.toDouble()
+    if (normalized <= alphaCutoff) {
+        return Color.TRANSPARENT
+    }
+    val colors = if (isVoid) {
+        VOID_HEATMAP_COLORS
+    } else {
+        HOT_HEATMAP_COLORS
+    }
+    val stops = if (isVoid) {
+        VOID_HEATMAP_STOPS
+    } else {
+        HOT_HEATMAP_STOPS
+    }
+    val color = interpolateColor(colors, stops, normalized)
+    val alphaGamma = if (isVoid) HEATMAP_VOID_ALPHA_GAMMA else settings.hotAlphaGamma.toDouble()
+    val alphaIntensity = normalized.pow(alphaGamma)
+    val alpha = (HEATMAP_MIN_ALPHA + alphaIntensity * (HEATMAP_MAX_ALPHA - HEATMAP_MIN_ALPHA))
+        .roundToInt()
+        .coerceIn(0, 255)
+    return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+}
+
+private fun interpolateColor(colors: IntArray, stops: FloatArray, value: Double): Int {
+    val clamped = value.coerceIn(0.0, 1.0).toFloat()
+    val upperIndex = stops.indexOfFirst { clamped <= it }.takeIf { it >= 0 } ?: stops.lastIndex
+    if (upperIndex == 0) {
+        return colors.first()
+    }
+
+    val lowerIndex = upperIndex - 1
+    val lowerStop = stops[lowerIndex]
+    val upperStop = stops[upperIndex]
+    val fraction = if (upperStop == lowerStop) 0.0 else ((clamped - lowerStop) / (upperStop - lowerStop)).toDouble()
+    return Color.rgb(
+        lerp(Color.red(colors[lowerIndex]).toDouble(), Color.red(colors[upperIndex]).toDouble(), fraction).roundToInt(),
+        lerp(Color.green(colors[lowerIndex]).toDouble(), Color.green(colors[upperIndex]).toDouble(), fraction).roundToInt(),
+        lerp(Color.blue(colors[lowerIndex]).toDouble(), Color.blue(colors[upperIndex]).toDouble(), fraction).roundToInt(),
+    )
+}
+
+private fun lerp(start: Double, end: Double, fraction: Double): Double =
+    start + (end - start) * fraction.coerceIn(0.0, 1.0)
+
+private fun smoothstep(edge0: Double, edge1: Double, value: Double): Double {
+    val x = ((value - edge0) / (edge1 - edge0)).coerceIn(0.0, 1.0)
+    return x * x * (3 - 2 * x)
 }
 
 private fun radiusBoundsPoints(center: ExplorePoint, radiusMeters: Int): List<ExplorePoint> =
@@ -1006,6 +1122,30 @@ private const val AMAP_SUCCESS_CODE = 1000
 private const val TARGET_CONNECTOR_MIN_DISTANCE_METERS = 3.0
 private const val TARGET_CONNECTOR_DASH_METERS = 10.0
 private const val TARGET_CONNECTOR_GAP_METERS = 16.0
+private const val HEATMAP_Z_INDEX = 1.0f
+private const val HEATMAP_BITMAP_SIZE = 512
+private const val HEATMAP_VOID_CONTRAST_LOW = 0.04
+private const val HEATMAP_VOID_CONTRAST_HIGH = 0.78
+private const val HEATMAP_VOID_ALPHA_GAMMA = 0.85
+private const val HEATMAP_VOID_ALPHA_CUTOFF = 0.005
+private const val HEATMAP_MIN_ALPHA = 10
+private const val HEATMAP_MAX_ALPHA = 190
+private val HOT_HEATMAP_COLORS = intArrayOf(
+    Color.rgb(0, 122, 255),
+    Color.rgb(0, 210, 180),
+    Color.rgb(255, 214, 10),
+    Color.rgb(255, 133, 27),
+    Color.rgb(255, 59, 48),
+)
+private val HOT_HEATMAP_STOPS = floatArrayOf(0.08f, 0.50f, 0.78f, 0.94f, 1.0f)
+private val VOID_HEATMAP_COLORS = intArrayOf(
+    Color.rgb(35, 78, 255),
+    Color.rgb(116, 77, 255),
+    Color.rgb(0, 229, 255),
+    Color.rgb(160, 245, 255),
+    Color.rgb(245, 250, 255),
+)
+private val VOID_HEATMAP_STOPS = floatArrayOf(0.02f, 0.36f, 0.66f, 0.90f, 1.0f)
 
 private fun openAmapNavigation(
     context: Context,

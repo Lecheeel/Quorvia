@@ -140,6 +140,49 @@ test("fine target generation endpoint requests four 1024-value batches", async (
   }
 });
 
+test("void target avoids boundary-biased edge cells", async () => {
+  const origin = { latitude: 39.9087, longitude: 116.3975 };
+  const radiusMeters = 3000;
+  const app = buildApp({
+    fetcher: async (query) => ({
+      source: "debug",
+      type: query.type,
+      length: query.length,
+      values: deterministicValues(query.length),
+    }),
+  });
+
+  try {
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/targets/generate",
+      payload: {
+        origin,
+        radiusMeters,
+        mode: "standard",
+        targetType: "void",
+        provider: "debug",
+        heatGridSize: 32,
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.equal(body.target.role, "void");
+    assert.ok(distanceMeters(origin, body.target) <= radiusMeters * 0.85 + 1);
+    assert.equal(
+      body.heatGrid.cells.some(
+        (cell: { latitude: number; longitude: number }) =>
+          Math.abs(cell.latitude - body.target.latitude) < 1e-12 &&
+          Math.abs(cell.longitude - body.target.longitude) < 1e-12,
+      ),
+      false,
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test("anomaly target generation chooses a density extremum", async () => {
   const app = buildApp({
     fetcher: async (query) => ({
