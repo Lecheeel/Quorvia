@@ -38,3 +38,36 @@ Created MapMarkerHelper to dynamically draw modern vector circles and crosshair 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: KDE target generation release
+
+**Date**: 2026-07-09
+**Task**: KDE target generation release
+**Branch**: `master`
+
+### Summary
+
+Implemented server-side KDE target generation, Android heatmap exploration UI, history metadata, v0.2.3 release build, and GitHub release publication.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `482b823` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
