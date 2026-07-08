@@ -171,7 +171,7 @@ private fun HistoryRecordCard(
                 Text(formatTime(record.createdAtMillis), style = MaterialTheme.typography.bodySmall)
             }
             Text(
-                "${formatRadius(record.radiusMeters)} · ${record.mapVisualMode.label} · ${record.randomProvider.name}",
+                "${record.targetType.label} · ${formatRadius(record.radiusMeters)} · ${record.randomProvider.name}",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
@@ -251,8 +251,11 @@ private fun HistoryDetailRoute(
             DetailSection("Overview") {
                 DetailRow("Generated", formatTime(record.createdAtMillis))
                 DetailRow("Route", record.routeMode.label)
+                DetailRow("Target type", record.targetType.label)
+                DetailRow("Generation", record.generationMode.label)
                 DetailRow("Radius", formatRadius(record.radiusMeters))
                 DetailRow("Map", record.mapVisualMode.label)
+                record.intent?.let { DetailRow("Intent", it) }
                 DetailRow("Straight distance", formatDistance(record.straightDistanceMeters))
                 DetailRow("Route points", record.routePointCount.toString())
             }
@@ -261,7 +264,9 @@ private fun HistoryDetailRoute(
                 DetailRow("Provider", record.randomProvider.name)
                 DetailRow("Source", record.randomSource)
                 DetailRow("Type", record.randomType)
-                DetailRow("Length", record.randomLength.toString())
+                DetailRow("Random values", record.randomLength.toString())
+                DetailRow("Sample points", record.samplePointCount.toString())
+                record.densityScore?.let { DetailRow("Density score", "%.2f".format(it)) }
                 DetailRow(
                     "Values",
                     if (record.randomValues.isEmpty()) "Not stored" else record.randomValues.joinToString(),

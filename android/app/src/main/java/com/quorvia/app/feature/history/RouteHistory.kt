@@ -2,8 +2,10 @@ package com.quorvia.app.feature.history
 
 import android.content.Context
 import com.quorvia.app.feature.explore.ExplorePoint
+import com.quorvia.app.feature.explore.ExplorationTargetType
 import com.quorvia.app.feature.explore.MapVisualMode
 import com.quorvia.app.feature.explore.RouteMode
+import com.quorvia.app.feature.explore.TargetGenerationMode
 import com.quorvia.app.settings.RandomProvider
 import org.json.JSONArray
 import org.json.JSONObject
@@ -16,6 +18,11 @@ data class RouteHistoryRecord(
     val randomType: String,
     val randomLength: Int,
     val randomValues: List<Int>,
+    val generationMode: TargetGenerationMode = TargetGenerationMode.Standard,
+    val targetType: ExplorationTargetType = ExplorationTargetType.Attractor,
+    val intent: String? = null,
+    val samplePointCount: Int = randomLength / 2,
+    val densityScore: Double? = null,
     val radiusMeters: Int,
     val routeMode: RouteMode,
     val mapVisualMode: MapVisualMode,
@@ -53,7 +60,7 @@ class RouteHistoryStore(context: Context) {
 
     private fun save(records: List<RouteHistoryRecord>) {
         val array = JSONArray()
-        records.forEach { array.put(it.toJson()) }
+        records.forEach { array.put(it.toRouteHistoryJson()) }
         preferences.edit().putString(KEY_RECORDS, array.toString()).apply()
     }
 
@@ -63,7 +70,7 @@ class RouteHistoryStore(context: Context) {
     }
 }
 
-private fun RouteHistoryRecord.toJson(): JSONObject =
+internal fun RouteHistoryRecord.toRouteHistoryJson(): JSONObject =
     JSONObject()
         .put("id", id)
         .put("createdAtMillis", createdAtMillis)
@@ -72,6 +79,11 @@ private fun RouteHistoryRecord.toJson(): JSONObject =
         .put("randomType", randomType)
         .put("randomLength", randomLength)
         .put("randomValues", JSONArray().apply { randomValues.forEach { put(it) } })
+        .put("generationMode", generationMode.name)
+        .put("targetType", targetType.name)
+        .put("intent", intent)
+        .put("samplePointCount", samplePointCount)
+        .put("densityScore", densityScore)
         .put("radiusMeters", radiusMeters)
         .put("routeMode", routeMode.name)
         .put("mapVisualMode", mapVisualMode.name)
@@ -82,7 +94,7 @@ private fun RouteHistoryRecord.toJson(): JSONObject =
         .put("routePointCount", routePointCount)
         .put("routePoints", JSONArray().apply { routePoints.forEach { put(it.toJson()) } })
 
-private fun JSONObject.toRouteHistoryRecord(): RouteHistoryRecord =
+internal fun JSONObject.toRouteHistoryRecord(): RouteHistoryRecord =
     RouteHistoryRecord(
         id = getString("id"),
         createdAtMillis = getLong("createdAtMillis"),
@@ -94,6 +106,17 @@ private fun JSONObject.toRouteHistoryRecord(): RouteHistoryRecord =
         randomType = optString("randomType", "uint16"),
         randomLength = optInt("randomLength", 2),
         randomValues = optIntList("randomValues"),
+        generationMode = enumValueOrDefault(
+            value = optString("generationMode"),
+            default = TargetGenerationMode.Standard,
+        ),
+        targetType = enumValueOrDefault(
+            value = optString("targetType"),
+            default = ExplorationTargetType.Attractor,
+        ),
+        intent = optString("intent").takeIf { it.isNotBlank() && it != "null" },
+        samplePointCount = optInt("samplePointCount", optInt("randomLength", 2) / 2),
+        densityScore = if (has("densityScore") && !isNull("densityScore")) optDouble("densityScore") else null,
         radiusMeters = getInt("radiusMeters"),
         routeMode = enumValueOrDefault(
             value = optString("routeMode"),

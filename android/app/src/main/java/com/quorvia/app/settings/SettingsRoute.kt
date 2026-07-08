@@ -26,12 +26,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quorvia.app.BuildConfig
+import com.quorvia.app.feature.explore.ExplorePreferences
+import com.quorvia.app.feature.explore.TargetGenerationMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsRoute(
     settings: DeveloperSettings,
+    explorePreferences: ExplorePreferences,
     onSettingsChange: (DeveloperSettings) -> Unit,
+    onExplorePreferencesChange: (ExplorePreferences) -> Unit,
     onBack: () -> Unit,
 ) {
     var aboutTapCount by remember { mutableIntStateOf(0) }
@@ -101,6 +105,39 @@ fun SettingsRoute(
                                 label = { Text("Debug") },
                             )
                         }
+                    }
+                }
+            }
+
+            Card(
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("Generation quality", style = MaterialTheme.typography.titleSmall)
+                    Text("Standard uses 1024 sample points. Fine uses 2048 sample points.", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = explorePreferences.generationMode == TargetGenerationMode.Standard,
+                            onClick = {
+                                onExplorePreferencesChange(
+                                    explorePreferences.copy(generationMode = TargetGenerationMode.Standard),
+                                )
+                            },
+                            label = { Text("Standard") },
+                        )
+                        FilterChip(
+                            selected = explorePreferences.generationMode == TargetGenerationMode.Fine,
+                            onClick = {
+                                onExplorePreferencesChange(
+                                    explorePreferences.copy(generationMode = TargetGenerationMode.Fine),
+                                )
+                            },
+                            label = { Text("Fine") },
+                        )
                     }
                 }
             }

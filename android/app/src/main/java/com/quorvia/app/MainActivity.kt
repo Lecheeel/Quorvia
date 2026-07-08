@@ -80,9 +80,14 @@ class MainActivity : ComponentActivity() {
                     )
                     AppScreen.Settings -> SettingsRoute(
                         settings = settings,
+                        explorePreferences = explorePreferences,
                         onSettingsChange = { updated ->
                             settings = updated
                             settingsStore.save(updated)
+                        },
+                        onExplorePreferencesChange = { updated ->
+                            explorePreferences = updated
+                            explorePreferencesStore.save(updated)
                         },
                         onBack = { screen = AppScreen.Explore },
                     )

@@ -71,8 +71,8 @@ android {
         applicationId = "com.quorvia.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.2.2"
+        versionCode = 17
+        versionName = "0.2.3"
 
         manifestPlaceholders["AMAP_ANDROID_KEY"] =
             secretProperty("AMAP_ANDROID_KEY", "AMAP_ANDROID_RELEASE_KEY", "AMAP_ANDROID_DEBUG_KEY").orEmpty()
@@ -150,4 +150,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20250517")
 }

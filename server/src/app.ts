@@ -10,6 +10,7 @@ import {
   type QuantumNumbers,
   type RandomQuery,
 } from "./qrng.js";
+import { generateTarget, parseTargetGenerationRequest } from "./targets.js";
 
 type BuildAppOptions = {
   logger?: boolean | { level: string };
@@ -61,6 +62,33 @@ export function buildApp(options: BuildAppOptions = {}) {
       return reply.code(502).send({
         error: "qrng_unavailable",
         message: "Quantum random source is unavailable. No fallback was used.",
+      });
+    }
+  });
+
+  app.post("/v1/targets/generate", async (request, reply) => {
+    try {
+      const generationRequest = parseTargetGenerationRequest(request.body);
+      return await generateTarget(generationRequest, fetcher);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return reply.code(400).send({
+          error: "invalid_target_request",
+          details: error.issues,
+        });
+      }
+
+      if (error instanceof DebugRandomNotAllowedError) {
+        return reply.code(403).send({
+          error: "debug_random_disabled",
+          message: "Debug random provider is disabled on this server.",
+        });
+      }
+
+      request.log.error(error);
+      return reply.code(502).send({
+        error: "target_generation_unavailable",
+        message: "Target generation is unavailable. No fallback was used.",
       });
     }
   });

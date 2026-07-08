@@ -26,14 +26,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLocationAlt
 import androidx.compose.material.icons.outlined.Close
@@ -108,10 +112,11 @@ fun ExploreRoute(
 ) {
     var uiState by remember {
         mutableStateOf(
-            ExploreUiState(
-                radiusMeters = preferences.radiusMeters,
-                mapVisualMode = preferences.mapVisualMode,
-            ),
+                ExploreUiState(
+                    radiusMeters = preferences.radiusMeters,
+                    mapVisualMode = preferences.mapVisualMode,
+                    generationMode = preferences.generationMode,
+                ),
         )
     }
 
@@ -124,6 +129,7 @@ fun ExploreRoute(
                 ExplorePreferences(
                     radiusMeters = updated.radiusMeters,
                     mapVisualMode = updated.mapVisualMode,
+                    generationMode = updated.generationMode,
                 ),
             )
         },
@@ -149,6 +155,7 @@ private fun ExploreScreen(
     val qrngClient = remember { QrngClient() }
     val mapView = rememberMapViewWithLifecycle()
     val mapRenderState = remember { MapRenderState() }
+    var showGenerateDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -238,15 +245,7 @@ private fun ExploreScreen(
             uiState = uiState,
             onRadiusChange = { onStateChange(uiState.withRadius(it)) },
             onGenerateRoute = {
-                generateRoute(
-                    context = context,
-                    scope = scope,
-                    qrngClient = qrngClient,
-                    developerSettings = developerSettings,
-                    uiState = uiState,
-                    onStateChange = onStateChange,
-                    onRouteGenerated = onRouteGenerated,
-                )
+                showGenerateDialog = true
             },
             onOpenNavigation = {
                 openGeneratedNavigation(context, uiState, onStateChange)
@@ -259,6 +258,27 @@ private fun ExploreScreen(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         )
+
+        if (showGenerateDialog) {
+            GenerateTargetDialog(
+                generationMode = uiState.generationMode,
+                onDismiss = { showGenerateDialog = false },
+                onGenerate = { targetType, intent ->
+                    showGenerateDialog = false
+                    generateRoute(
+                        context = context,
+                        scope = scope,
+                        qrngClient = qrngClient,
+                        developerSettings = developerSettings,
+                        uiState = uiState,
+                        targetType = targetType,
+                        intent = intent,
+                        onStateChange = onStateChange,
+                        onRouteGenerated = onRouteGenerated,
+                    )
+                },
+            )
+        }
     }
 }
 
@@ -308,6 +328,60 @@ private fun TopOverlay(
 }
 
 @Composable
+private fun GenerateTargetDialog(
+    generationMode: TargetGenerationMode,
+    onDismiss: () -> Unit,
+    onGenerate: (ExplorationTargetType, String?) -> Unit,
+) {
+    var selectedType by remember { mutableStateOf(ExplorationTargetType.Attractor) }
+    var intentText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Generate target") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "${generationMode.label}: ${generationMode.randomValueCount} random values / ${generationMode.samplePointCount} sample points",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ExplorationTargetType.entries.forEach { type ->
+                        FilterChip(
+                            selected = selectedType == type,
+                            onClick = { selectedType = type },
+                            label = { Text(type.label) },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = intentText,
+                    onValueChange = { intentText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    minLines = 2,
+                    label = { Text("Intent (optional)") },
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onGenerate(selectedType, intentText.trim().takeIf { it.isNotBlank() })
+                },
+            ) {
+                Text("Generate")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
 private fun FloatingControlPanel(
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
@@ -350,7 +424,7 @@ private fun FloatingControlPanel(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "${uiState.routeMode.label} · ${formatRadius(uiState.radiusMeters)}",
+                        text = "${uiState.routeMode.label} · ${formatRadius(uiState.radiusMeters)} · ${uiState.generationMode.label}",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -430,6 +504,16 @@ private fun FloatingControlPanel(
                         Spacer(Modifier.size(1.dp).weight(1f))
                         Text(formatRadius(uiState.radiusMeters))
                     }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Generation", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "${uiState.generationMode.label} · ${uiState.generationMode.samplePointCount} points",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
             }
         }
@@ -442,6 +526,8 @@ private fun generateRoute(
     qrngClient: QrngClient,
     developerSettings: DeveloperSettings,
     uiState: ExploreUiState,
+    targetType: ExplorationTargetType,
+    intent: String?,
     onStateChange: (ExploreUiState) -> Unit,
     onRouteGenerated: (RouteHistoryRecord) -> Unit,
 ) {
@@ -454,28 +540,38 @@ private fun generateRoute(
     onStateChange(uiState.withStatus(ExploreStatus.Loading))
     scope.launch {
         val result = runCatching {
-            val qrngResponse = withContext(Dispatchers.IO) {
-                qrngClient.fetchUInt16(
-                    length = 2,
-                    provider = developerSettings.randomProvider,
+            val generation = withContext(Dispatchers.IO) {
+                qrngClient.generateTarget(
+                    TargetGenerationRequest(
+                        origin = current,
+                        radiusMeters = uiState.radiusMeters,
+                        mode = uiState.generationMode,
+                        targetType = targetType,
+                        provider = developerSettings.randomProvider,
+                    ),
                 )
             }
-            val target = generateTargetPoint(current, uiState.radiusMeters, qrngResponse.values)
+            val target = generation.target.point
             val routePoints = fetchRoutePoints(context, uiState.routeMode, current, target)
-            Triple(qrngResponse, target, routePoints)
+            Triple(generation, target, routePoints)
         }
 
         result
-            .onSuccess { (qrngResponse, target, routePoints) ->
+            .onSuccess { (generation, target, routePoints) ->
                 onRouteGenerated(
                     RouteHistoryRecord(
                         id = "${System.currentTimeMillis()}-${target.latitude}-${target.longitude}",
                         createdAtMillis = System.currentTimeMillis(),
                         randomProvider = developerSettings.randomProvider,
-                        randomSource = qrngResponse.source,
-                        randomType = "uint16",
-                        randomLength = 2,
-                        randomValues = qrngResponse.values,
+                        randomSource = generation.source,
+                        randomType = generation.randomType,
+                        randomLength = generation.randomValueCount,
+                        randomValues = emptyList(),
+                        generationMode = generation.mode,
+                        targetType = generation.targetType,
+                        intent = intent,
+                        samplePointCount = generation.samplePointCount,
+                        densityScore = generation.target.score,
                         radiusMeters = uiState.radiusMeters,
                         routeMode = uiState.routeMode,
                         mapVisualMode = uiState.mapVisualMode,
@@ -487,7 +583,7 @@ private fun generateRoute(
                         routePoints = routePoints,
                     ),
                 )
-                onStateChange(uiState.withTargetRoute(target, routePoints))
+                onStateChange(uiState.withTargetRoute(generation, intent, routePoints))
             }
             .onFailure { error ->
                 onStateChange(
@@ -528,6 +624,15 @@ private val MapVisualMode.label: String
         MapVisualMode.Normal -> "2D"
         MapVisualMode.Satellite -> "Satellite"
     }
+
+private val TargetGenerationMode.randomValueCount: Int
+    get() = when (this) {
+        TargetGenerationMode.Standard -> 2048
+        TargetGenerationMode.Fine -> 4096
+    }
+
+private val TargetGenerationMode.samplePointCount: Int
+    get() = randomValueCount / 2
 
 @Composable
 private fun StatusText(status: ExploreStatus) {
@@ -611,7 +716,10 @@ private class MapRenderState {
     var radiusCircle: Circle? = null
     var targetRangeCircle: Circle? = null
     var targetMarker: Marker? = null
+    var densityMarker: Marker? = null
     var routePolyline: Polyline? = null
+    var samplePointCircles: List<Circle> = emptyList()
+    var heatCellCircles: List<Circle> = emptyList()
     var targetConnectorPolylines: List<Polyline> = emptyList()
     var lastViewportKey: String? = null
 }
@@ -621,8 +729,13 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
     renderState.radiusCircle?.remove()
     renderState.targetRangeCircle?.remove()
     renderState.targetMarker?.remove()
+    renderState.densityMarker?.remove()
     renderState.routePolyline?.remove()
+    renderState.samplePointCircles.forEach { it.remove() }
+    renderState.heatCellCircles.forEach { it.remove() }
     renderState.targetConnectorPolylines.forEach { it.remove() }
+    renderState.samplePointCircles = emptyList()
+    renderState.heatCellCircles = emptyList()
     renderState.targetConnectorPolylines = emptyList()
 
     state.currentPoint?.let { origin ->
@@ -633,6 +746,37 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
                 .strokeColor(0xFF2F4B66.toInt())
                 .fillColor(0x00000000)
                 .strokeWidth(20f),
+        )
+    }
+
+    state.targetGeneration?.let { generation ->
+        renderState.heatCellCircles = generation.heatGrid.cells
+            .filter { it.value > 0.08 }
+            .map { cell ->
+                map.addCircle(
+                    CircleOptions()
+                        .center(cell.point.toLatLng())
+                        .radius(heatCellRadiusMeters(generation.heatGrid))
+                        .strokeWidth(0f)
+                        .fillColor(heatColor(cell.value)),
+                )
+            }
+        renderState.samplePointCircles = generation.samplePoints.map { point ->
+            map.addCircle(
+                CircleOptions()
+                    .center(point.toLatLng())
+                    .radius(samplePointRadiusMeters(state.radiusMeters))
+                    .strokeWidth(0f)
+                    .fillColor(0x552196F3.toInt()),
+            )
+        }
+        renderState.densityMarker = map.addMarker(
+            MarkerOptions()
+                .position(generation.attractor.point.toLatLng())
+                .title("Density peak")
+                .snippet("Attractor score %.2f".format(generation.attractor.score))
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
+                .anchor(0.5f, 1.0f),
         )
     }
 
@@ -648,8 +792,8 @@ private fun MapView.renderExploreOverlays(renderState: MapRenderState, state: Ex
         renderState.targetMarker = map.addMarker(
             MarkerOptions()
                 .position(target.toLatLng())
-                .title("Quantum target")
-                .snippet("Generated from ANU/AQN entropy")
+                .title(state.targetGeneration?.targetType?.label ?: "Quantum target")
+                .snippet(state.targetGeneration?.let { "${it.mode.label} · ${it.samplePointCount} sample points" } ?: "Generated from ANU/AQN entropy")
                 .icon(MapMarkerHelper.getQuantumTargetMarker(context))
                 .anchor(0.5f, 1.0f),
         )
@@ -743,6 +887,8 @@ private fun MapView.fitViewportIfNeeded(renderState: MapRenderState, state: Expl
         append(current.latitude).append(':').append(current.longitude)
         append('|').append(state.radiusMeters)
         append('|').append(state.targetPoint?.latitude).append(':').append(state.targetPoint?.longitude)
+        append('|').append(state.targetGeneration?.targetType)
+        append('|').append(state.targetGeneration?.mode)
         append('|').append(state.routePoints.size)
     }
     if (renderState.lastViewportKey == key) {
@@ -759,6 +905,21 @@ private fun MapView.fitViewportIfNeeded(renderState: MapRenderState, state: Expl
         points.forEach { include(it.toLatLng()) }
     }.build()
     map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
+}
+
+private fun heatCellRadiusMeters(heatGrid: HeatGrid): Double {
+    val latMeters = (heatGrid.maxLatitude - heatGrid.minLatitude) * 111_320.0 / heatGrid.size
+    return (latMeters * 0.55).coerceAtLeast(20.0)
+}
+
+private fun samplePointRadiusMeters(radiusMeters: Int): Double =
+    (radiusMeters * 0.004).coerceIn(4.0, 24.0)
+
+private fun heatColor(value: Double): Int {
+    val alpha = (35 + value.coerceIn(0.0, 1.0) * 125).roundToInt().coerceIn(0, 255)
+    val red = 255
+    val green = (210 - value.coerceIn(0.0, 1.0) * 130).roundToInt().coerceIn(0, 255)
+    return (alpha shl 24) or (red shl 16) or (green shl 8) or 0x20
 }
 
 private fun radiusBoundsPoints(center: ExplorePoint, radiusMeters: Int): List<ExplorePoint> =

@@ -12,6 +12,7 @@ class ExploreUiStateTest {
 
         assertEquals(3_000, state.radiusMeters)
         assertEquals(MapVisualMode.Satellite, state.mapVisualMode)
+        assertEquals(TargetGenerationMode.Standard, state.generationMode)
         assertEquals(RouteMode.Drive, state.routeMode)
         assertFalse(state.canGenerate)
     }
