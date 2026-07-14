@@ -1,4 +1,6 @@
 # Quorvia
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia?ref=badge_shield)
+
 
 ## 中文
 
@@ -237,3 +239,7 @@ Backend deployment docs:
 - `server/deploy/quorvia-qrng.service`
 
 Recommended deployment target: Debian 13 lightweight server, systemd service, and Nginx or Caddy in front for HTTPS.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia?ref=badge_large)
