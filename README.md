@@ -56,6 +56,8 @@ Android Gradle 任务故意串行运行，避免 Windows 上 Kotlin compiler cac
 
 FOSSA 许可证检测报告：[查看报告](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia/refs/branch/master/161d09aec596ffc215f148d2fe61a739f3035767?revisionScanId=113150707)。
 
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia?ref=badge_large)
+
 ### 后端代理
 
 本地启动：
@@ -166,6 +168,8 @@ The script runs:
 Android Gradle tasks are intentionally run serially to avoid Kotlin compiler cache contention on Windows.
 
 FOSSA license scan report: [View report](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia/refs/branch/master/161d09aec596ffc215f148d2fe61a739f3035767?revisionScanId=113150707).
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia?ref=badge_large)
 
 ### Backend Proxy
 
