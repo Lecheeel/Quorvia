@@ -1,5 +1,7 @@
 # Quorvia
 
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia/refs/branch/master/161d09aec596ffc215f148d2fe61a739f3035767?revisionScanId=113150707)
+
 ## 中文
 
 Quorvia 是一个面向 Android 的量子随机现实探索应用原型。它使用 ANU/AQN 量子随机数作为唯一随机源，通过轻量 Node.js 代理保护 API Key，并为后续接入高德地图、定位、路线规划和导航能力预留了现代化 Android 架构。
@@ -32,17 +34,6 @@ Quorvia 是一个面向 Android 的量子随机现实探索应用原型。它使
 - Map Provider: AMap Android SDK
 - Testing: JUnit, Node test runner, TypeScript strict checks
 
-### 本地配置
-
-真实密钥不要提交到 Git。当前项目通过以下本地文件保存私有配置：
-
-- `.quorvia.local.env`
-- `android/local.properties`
-- `server/.env`
-- `quorvia-release.jks`
-
-这些文件已经被 `.gitignore` 忽略。
-
 ### 验证
 
 在 PowerShell 中运行：
@@ -62,6 +53,8 @@ Quorvia 是一个面向 Android 的量子随机现实探索应用原型。它使
 - 敏感值扫描
 
 Android Gradle 任务故意串行运行，避免 Windows 上 Kotlin compiler cache 并发冲突。
+
+FOSSA 许可证检测报告：[查看报告](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia/refs/branch/master/161d09aec596ffc215f148d2fe61a739f3035767?revisionScanId=113150707)。
 
 ### 后端代理
 
@@ -152,17 +145,6 @@ Quorvia is an Android-first quantum-random real-world exploration prototype. It 
 - Map Provider: AMap Android SDK
 - Testing: JUnit, Node test runner, TypeScript strict checks
 
-### Local Configuration
-
-Never commit real secrets. Private local configuration is stored in:
-
-- `.quorvia.local.env`
-- `android/local.properties`
-- `server/.env`
-- `quorvia-release.jks`
-
-These files are ignored by `.gitignore`.
-
 ### Verification
 
 Run from PowerShell:
@@ -182,6 +164,8 @@ The script runs:
 - Sensitive value scan
 
 Android Gradle tasks are intentionally run serially to avoid Kotlin compiler cache contention on Windows.
+
+FOSSA license scan report: [View report](https://app.fossa.com/projects/git%2Bgithub.com%2FLecheeel%2FQuorvia/refs/branch/master/161d09aec596ffc215f148d2fe61a739f3035767?revisionScanId=113150707).
 
 ### Backend Proxy
 
